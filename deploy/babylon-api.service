@@ -1,0 +1,22 @@
+[Unit]
+Description=Babylon API Server
+After=network.target
+
+[Service]
+Type=simple
+User=babylon
+Group=babylon
+WorkingDirectory=/opt/babylon/api
+EnvironmentFile=/opt/babylon/.env
+ExecStart=/usr/bin/node dist/index.js
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=babylon-api
+
+# API is lightweight — generous limits
+MemoryMax=1G
+
+[Install]
+WantedBy=multi-user.target

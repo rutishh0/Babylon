@@ -1,0 +1,28 @@
+[Unit]
+Description=Babylon Ingest Daemon
+After=network.target qbittorrent-nox.service babylon-api.service
+Wants=qbittorrent-nox.service babylon-api.service
+
+[Service]
+Type=simple
+User=babylon
+Group=babylon
+WorkingDirectory=/opt/babylon/ingest
+EnvironmentFile=/opt/babylon/.env
+ExecStart=/opt/babylon/ingest/venv/bin/python daemon.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=babylon-ingest
+
+# Resource limits — daemon should not monopolise the VPS
+# FFmpeg already uses all cores; this prevents the daemon loop from competing
+CPUQuota=10%
+MemoryMax=512M
+
+# Give the daemon time to finish an in-progress task before force-kill
+TimeoutStopSec=120
+
+[Install]
+WantedBy=multi-user.target
