@@ -1,0 +1,562 @@
+[
+  {
+    "title": "GOSICK",
+    "aliases": [],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Nichijou",
+    "aliases": ["My Ordinary Life", "Nichijou My Ordinary Life"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "No Game No Life",
+    "aliases": ["NGNL"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "KonoSuba Season 1",
+    "aliases": ["KonoSuba", "Kono Subarashii Sekai ni Shukufuku wo", "God's Blessing on This Wonderful World"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Quanzhi Fashi Season 1",
+    "aliases": ["Full-Time Magister", "Quan Zhi Fa Shi", "Quanzhi Fashi", "Full Time Magister S1"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Gabriel DropOut",
+    "aliases": ["Gabriel Dropout"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "KonoSuba Season 2",
+    "aliases": ["KonoSuba S2", "Kono Subarashii Sekai ni Shukufuku wo 2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Quanzhi Fashi Season 2",
+    "aliases": ["Full-Time Magister Season 2", "Quan Zhi Fa Shi S2", "Full Time Magister S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Asobi Asobase",
+    "aliases": ["Asobi Asobase workshop of fun"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Quanzhi Fashi Season 3",
+    "aliases": ["Full-Time Magister Season 3", "Quan Zhi Fa Shi S3", "Full Time Magister S3"],
+    "mode": "backlog",
+    "season": 3,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Arifureta Season 1",
+    "aliases": ["Arifureta", "Arifureta From Commonplace to World's Strongest", "Arifureta Shokugyou de Sekai Saikyou"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "High School Prodigies Have It Easy Even in Another World",
+    "aliases": ["Choujin Koukousei-tachi wa Isekai demo Yoyuu de Ikinuku you desu", "High School Prodigies"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Assassin's Pride",
+    "aliases": ["Assassins Pride"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Daily Life of the Immortal King Season 1",
+    "aliases": ["Xian Wang de Richang Shenghuo", "Daily Life of Immortal King", "Immortal King S1"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Quanzhi Fashi Season 4",
+    "aliases": ["Full-Time Magister Season 4", "Quan Zhi Fa Shi S4", "Full Time Magister S4"],
+    "mode": "backlog",
+    "season": 4,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Misfit of Demon King Academy Season 1",
+    "aliases": ["Maou Gakuin no Futekigousha", "Misfit of Demon King Academy", "AntiMagic Academy"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "By the Grace of the Gods Season 1",
+    "aliases": ["Kami-tachi ni Hirowareta Otoko", "By the Grace of the Gods"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Combatants Will Be Dispatched",
+    "aliases": ["Sentai Daishikkaku", "Combatants Will Be Dispatched!"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Tsukimichi Moonlit Fantasy Season 1",
+    "aliases": ["Tsukimichi", "Tsuki ga Michibiku Isekai Douchuu", "Moonlit Fantasy"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Quanzhi Fashi Season 5",
+    "aliases": ["Full-Time Magister Season 5", "Quan Zhi Fa Shi S5", "Full Time Magister S5"],
+    "mode": "backlog",
+    "season": 5,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Daily Life of the Immortal King Season 2",
+    "aliases": ["Xian Wang de Richang Shenghuo S2", "Daily Life of Immortal King S2", "Immortal King S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Spare Me Great Lord Season 1",
+    "aliases": ["Zao Hua Zhi Wang", "Spare Me Great Lord", "Rao Ming Da Ren"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Arifureta Season 2",
+    "aliases": ["Arifureta From Commonplace to World's Strongest Season 2", "Arifureta Shokugyou de Sekai Saikyou 2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Greatest Demon Lord Is Reborn as a Typical Nobody",
+    "aliases": ["Shijou Saikyou no Daimaou, Murabito A ni Tensei suru", "Greatest Demon Lord Reborn"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "I've Somehow Gotten Stronger When I Improved My Farm-Related Skills",
+    "aliases": ["Noumin Kanren no Skill Bakka Agetetara Naze ka Tsuyoku Natta", "Farm Skills OP"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Daily Life of the Immortal King Season 3",
+    "aliases": ["Xian Wang de Richang Shenghuo S3", "Daily Life of Immortal King S3", "Immortal King S3"],
+    "mode": "backlog",
+    "season": 3,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Eminence in Shadow Season 1",
+    "aliases": ["Kage no Jitsuryokusha ni Naritakute", "Eminence in Shadow"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Farming Life in Another World",
+    "aliases": ["Isekai Nonbiri Nouka", "Farming Life Isekai"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Misfit of Demon King Academy Season 2",
+    "aliases": ["Maou Gakuin no Futekigousha S2", "Misfit of Demon King Academy S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "By the Grace of the Gods Season 2",
+    "aliases": ["Kami-tachi ni Hirowareta Otoko S2", "By the Grace of the Gods S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Aristocrat's Otherworldly Adventure",
+    "aliases": ["Isekai Kizoku no Shoukan Yuusha", "Aristocrat Otherworldly Adventure", "Serving Gods Who Go Too Far"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "KonoSuba An Explosion on This Wonderful World",
+    "aliases": ["Megumin Spinoff", "Konosuba Explosion", "Kono Subarashii Sekai ni Bakuen wo"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "I Got a Cheat Skill in Another World",
+    "aliases": ["Isekai de Cheat Skill wo Te ni Shita Ore", "Cheat Skill Another World"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Quanzhi Fashi Season 6",
+    "aliases": ["Full-Time Magister Season 6", "Quan Zhi Fa Shi S6", "Full Time Magister S6"],
+    "mode": "backlog",
+    "season": 6,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Am I Actually the Strongest",
+    "aliases": ["Jitsu wa Ore, Saikyou deshita?", "Am I Actually the Strongest?"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "My Unique Skill Makes Me OP Even at Level 1",
+    "aliases": ["Level 1 dakedo Unique Skill de Saikyou desu", "Level 1 Unique Skill OP"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Shangri-La Frontier Season 1",
+    "aliases": ["Shangri-La Frontier", "Shangri La Frontier"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "A Playthrough of a Certain Dude's VRMMO Life",
+    "aliases": ["Toaru Ossan no VRMMO Katsudouki", "Certain Dude VRMMO"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Eminence in Shadow Season 2",
+    "aliases": ["Kage no Jitsuryokusha ni Naritakute S2", "Eminence in Shadow S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Demon Sword Master of Excalibur Academy",
+    "aliases": ["Maou no Ore ga Dorei Elf wo Yome ni Shitanda ga", "Excalibur Academy Demon Sword"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Vexations of a Shut-In Vampire Princess",
+    "aliases": ["Futsutsuka na Akujo de wa Gozaimasu ga", "Shut-In Vampire Princess"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Daily Life of the Immortal King Season 4",
+    "aliases": ["Xian Wang de Richang Shenghuo S4", "Daily Life of Immortal King S4", "Immortal King S4"],
+    "mode": "backlog",
+    "season": 4,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Tales of Wedding Rings Season 1",
+    "aliases": ["Kekkon Yubiwa Monogatari", "Tales of Wedding Rings"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Tsukimichi Moonlit Fantasy Season 2",
+    "aliases": ["Tsukimichi S2", "Tsuki ga Michibiku Isekai Douchuu S2", "Moonlit Fantasy S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Hokkaido Gals Are Super Adorable",
+    "aliases": ["Dosanko Gal wa Namara Menkoi", "Hokkaido Gals"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Foolish Angel Dances with the Devil",
+    "aliases": ["Oroka na Tenshi wa Akuma to Odoru", "Foolish Angel Dances with Devil"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Weakest Tamer Began a Journey to Pick Up Trash",
+    "aliases": ["Saijaku Tamer wa Gomi Hiroi no Tabi wo Hajimemashita", "Weakest Tamer"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Mission Yozakura Family",
+    "aliases": ["Mission: Yozakura Family", "Yozakura Family"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Chillin in Another World with Level 2 Super Cheat Powers",
+    "aliases": ["Lv2 kara Cheat datta Moto Yuusha Kouho no Mattari Isekai Life", "Level 2 Cheat Powers"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "KonoSuba Season 3",
+    "aliases": ["KonoSuba S3", "Kono Subarashii Sekai ni Shukufuku wo 3"],
+    "mode": "backlog",
+    "season": 3,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Misfit of Demon King Academy Season 2 Part 2",
+    "aliases": ["Maou Gakuin no Futekigousha S2 Part 2", "Misfit Demon King S2B"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Failure Frame",
+    "aliases": ["Failure Frame I Became the Strongest and Annihilated Everything With Low-Level Spells", "Hazure Waku no Joutai Ijou Skill"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Quanzhi Fashi Season 7",
+    "aliases": ["Full-Time Magister Season 7", "Quan Zhi Fa Shi S7", "Full Time Magister S7"],
+    "mode": "backlog",
+    "season": 7,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Let This Grieving Soul Retire Part 1",
+    "aliases": ["Wretched", "Kanashimi no Tamashii yo Yasume", "Grieving Soul Retire"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Loner Life in Another World",
+    "aliases": ["Hitoribocchi no Isekai Kouryaku", "Loner Life Isekai"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Healer Who Was Banished From His Party Is in Fact the Strongest",
+    "aliases": ["Party kara Tsuihou Sareta Sono Chiyu-shi", "Banished Healer Strongest"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Shangri-La Frontier Season 2",
+    "aliases": ["Shangri-La Frontier S2", "Shangri La Frontier S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Arifureta Season 3",
+    "aliases": ["Arifureta From Commonplace to World's Strongest Season 3", "Arifureta Shokugyou de Sekai Saikyou 3"],
+    "mode": "backlog",
+    "season": 3,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Daily Life of a Middle-Aged Online Shopper in Another World",
+    "aliases": ["Isekai de Mofumofu Nadenade suru Tame ni Ganbattemasu", "Middle-Aged Online Shopper Isekai"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "I'm a Noble on the Brink of Ruin So I Might as Well Try Mastering Magic",
+    "aliases": ["Houjou no Tenki", "Noble Brink of Ruin Mastering Magic"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Left My A-Rank Party to Help My Former Students Reach the Dungeon Depths",
+    "aliases": ["A-Rank Party wo Ridatsu shita Ore wa", "Former Students Dungeon Depths"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Shiunji Family Children",
+    "aliases": ["Shiunji-ke no Kodomotachi", "Shiunji Family"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Unaware Atelier Meister",
+    "aliases": ["Kioku ni Gozaimasen", "Unaware Atelier Meister"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "I'm the Evil Lord of an Intergalactic Empire",
+    "aliases": ["Ore wa Seikai Saiaku no Akutoku Ryoshu", "Evil Lord Intergalactic Empire"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Tales of Wedding Rings Season 2",
+    "aliases": ["Kekkon Yubiwa Monogatari S2", "Tales of Wedding Rings S2"],
+    "mode": "backlog",
+    "season": 2,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "A Gatherer's Adventure in Isekai",
+    "aliases": ["Saikyou no Shien-shoku", "Gatherer Adventure Isekai"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Let This Grieving Soul Retire Part 2",
+    "aliases": ["Kanashimi no Tamashii yo Yasume Part 2", "Grieving Soul Retire Part 2"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Chitose Is in the Ramune Bottle",
+    "aliases": ["Chitose-kun wa Ramune Bin no Naka", "Chitose Ramune Bottle"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Dad is a Hero Mom is a Spirit I'm a Reincarnator",
+    "aliases": ["Chichi wa Eiyuu, Haha wa Seirei, Musume no Watashi wa Tenseisha.", "Hero Dad Spirit Mom Reincarnator"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Hero Without a Class",
+    "aliases": ["Munou Nana", "Classless Hero"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Li'l Miss Vampire Can't Suck Right",
+    "aliases": ["Chiisana Vampire no Kekkon Seikatsu", "Lil Miss Vampire"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "My Gift Lvl 9999 Unlimited Gacha",
+    "aliases": ["Mugen Gacha Level 9999 no Boukensha", "Unlimited Gacha Level 9999"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "My Status as an Assassin Obviously Exceeds the Hero's",
+    "aliases": ["Assassin de Aru Ore no Status ga Yuusha yori mo Akiraka ni Tsuyoi", "Assassin Status Exceeds Hero"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Pass the Monster Meat Milady",
+    "aliases": ["Kaijuu no Okasama", "Pass the Monster Meat"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Daily Life of the Immortal King Season 5",
+    "aliases": ["Xian Wang de Richang Shenghuo S5", "Daily Life of Immortal King S5", "Immortal King S5"],
+    "mode": "backlog",
+    "season": 5,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "The Demon King's Daughter Is Too Kind",
+    "aliases": ["Maou no Musume wa Yasashisugiru", "Demon King Daughter Too Kind"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "There Was a Cute Girl in the Hero's Party So I Tried Confessing to Her",
+    "aliases": ["Yuusha Party ni Kawaii Ko ga Ita no de", "Cute Girl Hero Party Confessing"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Easygoing Territory Defense by the Optimistic Lord",
+    "aliases": ["Nonbiri Ryoushu no Slow Life", "Optimistic Lord Territory Defense"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Noble Reincarnation Born Blessed So I'll Obtain Ultimate Power",
+    "aliases": ["Tensei Kizoku no Isekai Boukenroku", "Noble Reincarnation Ultimate Power"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  },
+  {
+    "title": "Hell Mode",
+    "aliases": ["Hell Mode: The Hardcore Gamer Dominates in Another World with Garbage Balancing", "Hell Mode Hardcore Gamer"],
+    "mode": "backlog",
+    "season": 1,
+    "added_at": "2026-03-27T00:00:00Z"
+  }
+]
