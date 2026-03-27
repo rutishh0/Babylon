@@ -1,0 +1,6 @@
+{
+  "framework": "nextjs",
+  "buildCommand": "cd ../.. && pnpm --filter @babylon/web build",
+  "outputDirectory": "packages/web/.next",
+  "installCommand": "pnpm install"
+}
