@@ -6,6 +6,7 @@ export async function createTestApp(overrides?: Partial<AppOptions>): Promise<Fa
     dbPath: ':memory:',
     pin: undefined,
     allowedOrigins: ['http://localhost:3000'],
+    disableRateLimit: true,
     ...overrides,
   });
 }
