@@ -6,6 +6,7 @@ import healthRoutes from './routes/health.js';
 import mediaRoutes from './routes/media.js';
 import metadataRoutes from './routes/metadata.js';
 import uploadRoutes from './routes/upload.js';
+import streamRoutes from './routes/stream.js';
 import type Database from 'better-sqlite3';
 import { createS3Client, type S3, type S3Config } from './lib/s3.js';
 import { createTmdbClient, type TMDB } from './lib/tmdb.js';
@@ -86,6 +87,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(mediaRoutes);
   await app.register(metadataRoutes);
   await app.register(uploadRoutes);
+  await app.register(streamRoutes);
 
   return app;
 }
