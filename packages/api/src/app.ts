@@ -9,10 +9,12 @@ import uploadRoutes from './routes/upload.js';
 import streamRoutes from './routes/stream.js';
 import progressRoutes from './routes/progress.js';
 import libraryRoutes from './routes/library.js';
+import ingestRoutes from './routes/ingest.js';
 import type Database from 'better-sqlite3';
 import { createS3Client, type S3, type S3Config } from './lib/s3.js';
 import { createTmdbClient, type TMDB } from './lib/tmdb.js';
 import { createJikanClient, type Jikan } from './lib/jikan.js';
+import { createWatchlistManager, type WatchlistManager } from './lib/watchlist.js';
 
 export interface AppOptions {
   dbPath: string;
@@ -22,6 +24,7 @@ export interface AppOptions {
   disableRateLimit?: boolean;
   s3Config?: S3Config;
   tmdbReadAccessToken?: string;
+  ingestStateDir?: string;
 }
 
 declare module 'fastify' {
@@ -31,6 +34,7 @@ declare module 'fastify' {
     s3: S3;
     tmdb: TMDB;
     jikan: Jikan;
+    watchlist: WatchlistManager;
   }
 }
 
@@ -59,6 +63,10 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   // Jikan client (always created — no auth needed)
   const jikan = createJikanClient();
   app.decorate('jikan', jikan);
+
+  // Watchlist manager (filesystem-based IPC with Python ingest daemon)
+  const watchlist = createWatchlistManager(options.ingestStateDir || './data/ingest');
+  app.decorate('watchlist', watchlist);
 
   // CORS
   await app.register(cors, {
@@ -92,6 +100,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   await app.register(streamRoutes);
   await app.register(progressRoutes);
   await app.register(libraryRoutes);
+  await app.register(ingestRoutes);
 
   return app;
 }
