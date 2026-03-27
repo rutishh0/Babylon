@@ -67,12 +67,7 @@ const mediaRoutes: FastifyPluginAsync = async (app) => {
 
     const rows = (queryBuilder as any).limit(query.limit).offset(query.offset).all();
 
-    return reply.send({
-      items: rows.map(formatMedia),
-      total,
-      limit: query.limit,
-      offset: query.offset,
-    });
+    return reply.send(rows.map(formatMedia));
   });
 
   // GET /api/media/:id — full detail

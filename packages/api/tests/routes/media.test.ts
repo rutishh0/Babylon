@@ -75,8 +75,7 @@ describe('Media CRUD Routes', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.items).toEqual([]);
-    expect(body.total).toBe(0);
+    expect(body).toEqual([]);
   });
 
   it('GET /api/media — returns created media', async () => {
@@ -91,9 +90,8 @@ describe('Media CRUD Routes', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.items).toHaveLength(1);
-    expect(body.items[0].title).toBe('Breaking Bad');
-    expect(body.total).toBe(1);
+    expect(body).toHaveLength(1);
+    expect(body[0].title).toBe('Breaking Bad');
   });
 
   it('GET /api/media?type=anime — filters by type', async () => {
@@ -114,8 +112,8 @@ describe('Media CRUD Routes', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.items).toHaveLength(1);
-    expect(body.items[0].title).toBe('Naruto');
+    expect(body).toHaveLength(1);
+    expect(body[0].title).toBe('Naruto');
   });
 
   it('GET /api/media?q=titan — searches by title (partial match, case-insensitive)', async () => {
@@ -136,8 +134,8 @@ describe('Media CRUD Routes', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.items).toHaveLength(1);
-    expect(body.items[0].title).toBe('Attack on Titan');
+    expect(body).toHaveLength(1);
+    expect(body[0].title).toBe('Attack on Titan');
   });
 
   it('GET /api/media?limit=2&offset=2 — paginates', async () => {
@@ -154,8 +152,7 @@ describe('Media CRUD Routes', () => {
 
     expect(res.statusCode).toBe(200);
     const body = res.json();
-    expect(body.items).toHaveLength(2);
-    expect(body.total).toBe(5);
+    expect(body).toHaveLength(2);
   });
 
   // ── GET /api/media/:id ───────────────────────────────────────────────────────
