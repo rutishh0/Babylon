@@ -1,0 +1,13 @@
+Scaleway Access Key ID: SCW5NG4G5KZJV1SHZRH9
+
+Scaleway Secret Key: d783c46d-5fb5-4fc5-afc2-61c1d6ca1254
+
+Scaleway Bucket Name: Babylon
+
+Scaleway Region: it-mil
+
+Scaleway Endpoint URL: https://s3.it-mil.scw.cloud
+
+TMDB API Read Access Token: eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiYWI0ZjExMDNkZjJlMjJhNmU1ZDQ3Mjk0NDE2Mzk2MiIsIm5iZiI6MTc3NDYxNTE4Mi4zOTgwMDAyLCJzdWIiOiI2OWM2N2E4ZWQ3NDE1NTMzNGU0MjFmMWIiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.cQl9vnKyBeyVsmEa801pn3dcwkRNCG06BLiPWNI8E1w
+
+TMDB API Key: bab4f1103df2e22a6e5d472944163962

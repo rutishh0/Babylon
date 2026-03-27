@@ -1,0 +1,137 @@
+<h2>Babylon v2 — Consolidated VPS Architecture</h2>
+<p class="subtitle">Everything server-side runs on your UpCloud VPS</p>
+
+<div class="mockup">
+  <div class="mockup-header">Updated Architecture</div>
+  <div class="mockup-body" style="padding: 24px; background: #0a0a0a;">
+    <svg viewBox="0 0 940 680" style="width:100%;font-family:system-ui,sans-serif;">
+
+      <!-- CLIENTS ROW -->
+      <text x="470" y="22" text-anchor="middle" fill="#666" font-size="11" font-weight="600" letter-spacing="2">CLIENTS</text>
+
+      <rect x="60" y="35" width="150" height="60" rx="10" fill="#1a1a2e" stroke="#6366f1" stroke-width="2"/>
+      <text x="135" y="60" text-anchor="middle" fill="#e0e0e0" font-size="13" font-weight="600">Web Frontend</text>
+      <text x="135" y="76" text-anchor="middle" fill="#888" font-size="10">Next.js • Vercel</text>
+
+      <rect x="250" y="35" width="150" height="60" rx="10" fill="#1a1a2e" stroke="#6366f1" stroke-width="2"/>
+      <text x="325" y="60" text-anchor="middle" fill="#e0e0e0" font-size="13" font-weight="600">Android App</text>
+      <text x="325" y="76" text-anchor="middle" fill="#888" font-size="10">Kotlin • ExoPlayer</text>
+
+      <rect x="440" y="35" width="150" height="60" rx="10" fill="#1a1a2e" stroke="#6366f1" stroke-width="2"/>
+      <text x="515" y="60" text-anchor="middle" fill="#e0e0e0" font-size="13" font-weight="600">CLI Tool</text>
+      <text x="515" y="76" text-anchor="middle" fill="#888" font-size="10">Node.js • Local</text>
+
+      <!-- Arrows to VPS -->
+      <line x1="135" y1="95" x2="420" y2="160" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+      <line x1="325" y1="95" x2="420" y2="160" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+      <line x1="515" y1="95" x2="420" y2="160" stroke="#6366f1" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+      <text x="380" y="133" fill="#6366f1" font-size="10">HTTPS</text>
+
+      <!-- VPS BOX -->
+      <rect x="80" y="150" width="680" height="340" rx="14" fill="none" stroke="#22d3ee" stroke-width="2" stroke-dasharray="8,4"/>
+      <rect x="80" y="150" width="680" height="30" rx="14" fill="#0d2b3b" stroke="none"/>
+      <rect x="80" y="166" width="680" height="14" fill="#0d2b3b" stroke="none"/>
+      <text x="420" y="170" text-anchor="middle" fill="#22d3ee" font-size="12" font-weight="700">UpCloud VPS — 212.147.228.229 (Frankfurt)</text>
+      <text x="420" y="183" text-anchor="middle" fill="#22d3ee" font-size="9" opacity="0.7">6 vCPU • 16GB RAM • 320GB SSD • Ubuntu LTS</text>
+
+      <!-- Nginx -->
+      <rect x="340" y="200" width="160" height="40" rx="8" fill="#1e293b" stroke="#f59e0b" stroke-width="1.5"/>
+      <text x="420" y="220" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="600">Nginx</text>
+      <text x="420" y="233" text-anchor="middle" fill="#888" font-size="9">:80/:443 → :3000</text>
+
+      <!-- Arrow Nginx → API -->
+      <line x1="420" y1="240" x2="420" y2="265" stroke="#f59e0b" stroke-width="1.5"/>
+
+      <!-- Fastify API -->
+      <rect x="300" y="265" width="240" height="55" rx="10" fill="#1e293b" stroke="#22d3ee" stroke-width="2"/>
+      <text x="420" y="288" text-anchor="middle" fill="#e0e0e0" font-size="13" font-weight="700">Babylon API</text>
+      <text x="420" y="305" text-anchor="middle" fill="#888" font-size="10">Fastify • TypeScript • :3000</text>
+
+      <!-- SQLite -->
+      <rect x="110" y="278" width="140" height="45" rx="8" fill="#1a1a2e" stroke="#10b981" stroke-width="1.5"/>
+      <text x="180" y="298" text-anchor="middle" fill="#e0e0e0" font-size="11" font-weight="600">SQLite</text>
+      <text x="180" y="312" text-anchor="middle" fill="#888" font-size="9">Drizzle ORM • Local disk</text>
+      <line x1="250" y1="295" x2="300" y2="295" stroke="#10b981" stroke-width="1.5" stroke-dasharray="4,3"/>
+
+      <!-- Ingest Daemon -->
+      <rect x="160" y="370" width="240" height="100" rx="10" fill="#1a1a2e" stroke="#a855f7" stroke-width="2"/>
+      <text x="280" y="393" text-anchor="middle" fill="#a855f7" font-size="13" font-weight="700">Ingest Daemon</text>
+      <text x="280" y="408" text-anchor="middle" fill="#888" font-size="10">Python • systemd service</text>
+      <text x="280" y="428" text-anchor="middle" fill="#666" font-size="9">RSS Poll → Download → Transcode → Upload</text>
+      <text x="280" y="443" text-anchor="middle" fill="#666" font-size="9">watchlist.json • seen.json • failed.json</text>
+      <text x="280" y="458" text-anchor="middle" fill="#666" font-size="9">Backlog: sequential episode processing</text>
+
+      <!-- Arrow Ingest → API (localhost) -->
+      <path d="M 400 420 Q 440 400 440 320" fill="none" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="450" y="370" fill="#a855f7" font-size="9">localhost:3000</text>
+
+      <!-- qBittorrent -->
+      <rect x="470" y="385" width="160" height="50" rx="8" fill="#1a1a2e" stroke="#ef4444" stroke-width="1.5"/>
+      <text x="550" y="406" text-anchor="middle" fill="#e0e0e0" font-size="11" font-weight="600">qBittorrent-nox</text>
+      <text x="550" y="420" text-anchor="middle" fill="#888" font-size="9">WebUI :8080 • /downloads/</text>
+      <line x1="400" y1="410" x2="470" y2="410" stroke="#ef4444" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="435" y="404" fill="#ef4444" font-size="8">API</text>
+
+      <!-- FFmpeg -->
+      <rect x="470" y="445" width="160" height="35" rx="8" fill="#1a1a2e" stroke="#f97316" stroke-width="1.5"/>
+      <text x="550" y="466" text-anchor="middle" fill="#f97316" font-size="11" font-weight="600">FFmpeg</text>
+      <line x1="400" y1="450" x2="470" y2="460" stroke="#f97316" stroke-width="1.5" stroke-dasharray="4,3"/>
+      <text x="435" y="448" fill="#f97316" font-size="8">transcode</text>
+
+      <!-- EXTERNAL SERVICES ROW -->
+      <text x="470" y="530" text-anchor="middle" fill="#666" font-size="11" font-weight="600" letter-spacing="2">EXTERNAL SERVICES</text>
+
+      <!-- Scaleway -->
+      <rect x="60" y="545" width="170" height="55" rx="10" fill="#1a1a2e" stroke="#f43f5e" stroke-width="2"/>
+      <text x="145" y="568" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="600">Scaleway S3</text>
+      <text x="145" y="584" text-anchor="middle" fill="#888" font-size="9">Milan • Video/Images</text>
+
+      <!-- Nyaa -->
+      <rect x="270" y="545" width="130" height="55" rx="10" fill="#1a1a2e" stroke="#a855f7" stroke-width="2"/>
+      <text x="335" y="568" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="600">Nyaa RSS</text>
+      <text x="335" y="584" text-anchor="middle" fill="#888" font-size="9">SubsPlease + General</text>
+
+      <!-- Jikan -->
+      <rect x="440" y="545" width="120" height="55" rx="10" fill="#1a1a2e" stroke="#f59e0b" stroke-width="2"/>
+      <text x="500" y="568" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="600">Jikan</text>
+      <text x="500" y="584" text-anchor="middle" fill="#888" font-size="9">MAL Metadata</text>
+
+      <!-- TMDB -->
+      <rect x="600" y="545" width="120" height="55" rx="10" fill="#1a1a2e" stroke="#f59e0b" stroke-width="2"/>
+      <text x="660" y="568" text-anchor="middle" fill="#e0e0e0" font-size="12" font-weight="600">TMDB</text>
+      <text x="660" y="584" text-anchor="middle" fill="#888" font-size="9">Movie/TV Metadata</text>
+
+      <!-- Arrows from VPS to external -->
+      <line x1="300" y1="490" x2="145" y2="545" stroke="#f43f5e" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+      <text x="195" y="518" fill="#f43f5e" font-size="9">boto3 upload</text>
+
+      <line x1="320" y1="490" x2="335" y2="545" stroke="#a855f7" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+      <line x1="420" y1="320" x2="500" y2="545" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+      <line x1="420" y1="320" x2="660" y2="545" stroke="#f59e0b" stroke-width="1.5" stroke-dasharray="5,3" opacity="0.7"/>
+
+      <!-- Presigned URL arrow from clients to Scaleway -->
+      <path d="M 135 95 Q 60 300 100 545" fill="none" stroke="#f43f5e" stroke-width="1" stroke-dasharray="3,3" opacity="0.5"/>
+      <text x="42" y="340" fill="#f43f5e" font-size="8" transform="rotate(-80, 42, 340)">presigned stream</text>
+
+      <!-- Legend -->
+      <rect x="700" y="150" width="195" height="170" rx="8" fill="#111" stroke="#333" stroke-width="1"/>
+      <text x="715" y="170" fill="#aaa" font-size="10" font-weight="600">LEGEND</text>
+      <line x1="715" y1="185" x2="740" y2="185" stroke="#6366f1" stroke-width="2"/>
+      <text x="747" y="189" fill="#888" font-size="9">Client → VPS</text>
+      <line x1="715" y1="203" x2="740" y2="203" stroke="#22d3ee" stroke-width="2"/>
+      <text x="747" y="207" fill="#888" font-size="9">Babylon API</text>
+      <line x1="715" y1="221" x2="740" y2="221" stroke="#a855f7" stroke-width="2"/>
+      <text x="747" y="225" fill="#888" font-size="9">Ingest Pipeline</text>
+      <line x1="715" y1="239" x2="740" y2="239" stroke="#f43f5e" stroke-width="2"/>
+      <text x="747" y="243" fill="#888" font-size="9">S3 Storage</text>
+      <line x1="715" y1="257" x2="740" y2="257" stroke="#f59e0b" stroke-width="2"/>
+      <text x="747" y="261" fill="#888" font-size="9">Metadata APIs</text>
+      <circle cx="727" cy="277" r="5" fill="#10b981"/>
+      <text x="747" y="281" fill="#888" font-size="9">Database</text>
+      <circle cx="727" cy="297" r="5" fill="#ef4444"/>
+      <text x="747" y="301" fill="#888" font-size="9">qBittorrent</text>
+      <circle cx="727" cy="317" r="5" fill="#f97316"/>
+      <text x="747" y="321" fill="#888" font-size="9">FFmpeg</text>
+    </svg>
+  </div>
+</div>
