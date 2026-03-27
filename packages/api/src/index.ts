@@ -2,17 +2,14 @@ import 'dotenv/config';
 import { buildApp } from './app.js';
 
 const s3Config =
-  process.env.S3_ACCESS_KEY_ID &&
-  process.env.S3_SECRET_ACCESS_KEY &&
-  process.env.S3_BUCKET &&
-  process.env.S3_REGION &&
-  process.env.S3_ENDPOINT
+  process.env.SCALEWAY_ACCESS_KEY &&
+  process.env.SCALEWAY_SECRET_KEY
     ? {
-        accessKeyId: process.env.S3_ACCESS_KEY_ID,
-        secretAccessKey: process.env.S3_SECRET_ACCESS_KEY,
-        bucket: process.env.S3_BUCKET,
-        region: process.env.S3_REGION,
-        endpoint: process.env.S3_ENDPOINT,
+        accessKeyId: process.env.SCALEWAY_ACCESS_KEY,
+        secretAccessKey: process.env.SCALEWAY_SECRET_KEY,
+        bucket: process.env.SCALEWAY_BUCKET || 'Babylon',
+        region: process.env.SCALEWAY_REGION || 'it-mil',
+        endpoint: process.env.SCALEWAY_ENDPOINT || 'https://s3.it-mil.scw.cloud',
       }
     : undefined;
 
