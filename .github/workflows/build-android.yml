@@ -1,0 +1,100 @@
+name: Build Android APK
+
+on:
+  push:
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-android.yml'
+  workflow_dispatch:
+    inputs:
+      api_url:
+        description: 'Babylon API base URL'
+        required: false
+        default: 'https://api.internalrr.info'
+
+# Cancel in-progress runs on the same branch to avoid queue pile-up
+concurrency:
+  group: android-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Assemble Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout source code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # 2. Set up JDK 17 (required by AGP 8.x)
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'gradle'
+
+      # 3. Make gradlew executable (git may not preserve +x on Windows)
+      - name: Grant execute permission for gradlew
+        run: chmod +x android/gradlew
+
+      # 4. Validate Gradle wrapper (security check)
+      - name: Validate Gradle wrapper
+        uses: gradle/actions/wrapper-validation@v3
+
+      # 5. Cache Gradle dependencies and build outputs
+      - name: Cache Gradle packages
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+            android/.gradle
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle.kts', 'android/gradle/libs.versions.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      # 6. Inject API URL from secret (falls back to default if not set)
+      - name: Inject build config
+        working-directory: android
+        env:
+          BABYLON_API_URL: ${{ secrets.BABYLON_API_URL || 'https://api.internalrr.info' }}
+        run: |
+          echo "BABYLON_API_URL=$BABYLON_API_URL" >> local.properties
+
+      # 7. Build release APK
+      #    -PBABYLON_API_URL passes the URL as a Gradle property
+      #    which build.gradle.kts reads via project.findProperty("BABYLON_API_URL")
+      - name: Build Release APK
+        working-directory: android
+        run: |
+          ./gradlew assembleRelease \
+            -PBABYLON_API_URL="${{ secrets.BABYLON_API_URL || 'https://api.internalrr.info' }}" \
+            --stacktrace \
+            --no-daemon
+        env:
+          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4"
+
+      # 8. Upload APK artifact (expires after 30 days, downloadable from Actions tab)
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: babylon-release-${{ github.sha }}
+          path: android/app/build/outputs/apk/release/app-release*.apk
+          if-no-files-found: error
+          retention-days: 30
+
+      # 9. Post build summary
+      - name: Build summary
+        if: success()
+        run: |
+          APK=$(ls android/app/build/outputs/apk/release/*.apk | head -1)
+          SIZE=$(du -sh "$APK" | cut -f1)
+          echo "## Android Build Summary" >> $GITHUB_STEP_SUMMARY
+          echo "| Property | Value |" >> $GITHUB_STEP_SUMMARY
+          echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
+          echo "| APK | \`$(basename $APK)\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| Size | $SIZE |" >> $GITHUB_STEP_SUMMARY
+          echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
+          echo "| API URL | \`${{ secrets.BABYLON_API_URL || 'https://api.internalrr.info' }}\` |" >> $GITHUB_STEP_SUMMARY
