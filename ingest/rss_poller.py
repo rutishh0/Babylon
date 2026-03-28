@@ -1,43 +1,56 @@
 """
-rss_poller.py — Nyaa/SubsPlease RSS polling and watchlist matching.
+rss_poller.py — Nyaa RSS polling (for weekly episodes) and HTML scraping (for backlog batches).
 
-SubsPlease RSS URL (1080p, no batches):
+Weekly RSS URL (SubsPlease, 1080p, no batches):
   https://nyaa.si/?page=rss&u=subsplease&q=1080p+-batch
 
-Backlog batch search (SubsPlease uploader):
-  https://nyaa.si/?page=rss&q={TITLE}+1080p+Batch&u=subsplease
+Backlog batch search uses HTML scraping against Nyaa's search page:
+  https://nyaa.si/?f=0&c=1_2&q={TITLE}+batch&s=seeders&o=desc
 
-Backlog batch search (no uploader filter, fallback):
-  https://nyaa.si/?page=rss&q={TITLE}+1080p+Batch
+Uploader priority for batches (smaller encodes preferred):
+  1. Judas  2. Ember  3. ASW  4. SubsPlease  5. Any (most-seeded)
 """
 
-import time
+import re
 import logging
 from typing import Optional
 from dataclasses import dataclass
 from urllib.parse import quote_plus
 
+import requests
 import feedparser
+from bs4 import BeautifulSoup
 
 logger = logging.getLogger(__name__)
 
 SUBSPLEASE_RSS = "https://nyaa.si/?page=rss&u=subsplease&q=1080p+-batch"
-NYAA_RSS_BASE = "https://nyaa.si/?page=rss"
+NYAA_SEARCH_URL = "https://nyaa.si/"
+
+# Preferred uploaders in order (small encodes first)
+PREFERRED_UPLOADERS = ["judas", "ember", "asw", "subsplease"]
+
+# Request headers to mimic a browser
+HEADERS = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+}
 
 
 @dataclass
 class RssItem:
     title: str
-    episode: Optional[int]   # None for non-episode files
+    episode: Optional[int]
     magnet_link: str
     seeders: int
+    size: str = ""
 
+
+# ---------------------------------------------------------------------------
+# Weekly RSS polling (unchanged)
+# ---------------------------------------------------------------------------
 
 def poll_subsplease() -> list[RssItem]:
-    """
-    Fetch the SubsPlease 1080p RSS feed and return a list of RssItems.
-    Returns an empty list on network errors (caller should retry next cycle).
-    """
+    """Fetch the SubsPlease 1080p RSS feed and return a list of RssItems."""
     try:
         feed = feedparser.parse(SUBSPLEASE_RSS)
     except Exception as exc:
@@ -51,14 +64,11 @@ def poll_subsplease() -> list[RssItem]:
         title = entry.get("title", "")
         if is_non_episode(title):
             continue
-
-        # Magnet link is in entry.link or a <nyaa:magnetUri> tag
-        magnet = _extract_magnet(entry)
+        magnet = _extract_rss_magnet(entry)
         if not magnet:
             continue
-
         episode = parse_episode(title)
-        seeders = _extract_seeders(entry)
+        seeders = _extract_rss_seeders(entry)
         items.append(RssItem(title=title, episode=episode, magnet_link=magnet, seeders=seeders))
 
     logger.info("SubsPlease RSS returned %d usable items", len(items))
@@ -66,12 +76,7 @@ def poll_subsplease() -> list[RssItem]:
 
 
 def match_watchlist(rss_items: list[RssItem], watchlist: list[dict]) -> list[tuple[RssItem, dict]]:
-    """
-    Case-insensitive match each RSS item title against watchlist titles + aliases.
-
-    Returns a list of (rss_item, watchlist_entry) pairs where the RSS item title
-    contains the watchlist title or one of its aliases as a substring.
-    """
+    """Case-insensitive match each RSS item title against watchlist titles + aliases."""
     matched: list[tuple[RssItem, dict]] = []
     for item in rss_items:
         title_lower = item.title.lower()
@@ -80,97 +85,168 @@ def match_watchlist(rss_items: list[RssItem], watchlist: list[dict]) -> list[tup
             for candidate in candidates:
                 if candidate.lower() in title_lower:
                     matched.append((item, entry))
-                    break  # one watchlist entry match per RSS item is enough
+                    break
     return matched
+
+
+# ---------------------------------------------------------------------------
+# Backlog batch search (HTML scraping)
+# ---------------------------------------------------------------------------
+
+def _build_search_terms(title: str, aliases: list[str]) -> list[str]:
+    """Build search terms, stripping 'Season N' suffixes to broaden matches."""
+    terms = []
+    seen = set()
+
+    for raw in [title] + aliases:
+        t = raw.strip()
+        if t and t.lower() not in seen:
+            terms.append(t)
+            seen.add(t.lower())
+
+        # Strip "Season N" suffix
+        stripped = re.sub(r'\s+Season\s+\d+\s*$', '', t, flags=re.IGNORECASE).strip()
+        if stripped and stripped.lower() not in seen:
+            terms.append(stripped)
+            seen.add(stripped.lower())
+
+    return terms
+
+
+def _scrape_nyaa(query: str) -> list[RssItem]:
+    """
+    Scrape Nyaa HTML search page for results.
+    URL: https://nyaa.si/?f=0&c=1_2&q={query}&s=seeders&o=desc
+    Returns list of RssItem sorted by seeders descending.
+    """
+    url = f"{NYAA_SEARCH_URL}?f=0&c=1_2&q={quote_plus(query)}&s=seeders&o=desc"
+
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+    except Exception as exc:
+        logger.error("Nyaa scrape failed (query=%r): %s", query, exc)
+        return []
+
+    soup = BeautifulSoup(resp.text, "lxml")
+    table = soup.select_one("table.torrent-list tbody")
+    if not table:
+        return []
+
+    items: list[RssItem] = []
+    for row in table.select("tr"):
+        cols = row.select("td")
+        if len(cols) < 7:
+            continue
+
+        # Column layout: category | name | links | size | date | seeders | leechers | downloads
+        # Name column has <a> links — last <a> without class is the title link
+        name_col = cols[1]
+        title_links = name_col.select("a:not(.comments)")
+        if not title_links:
+            continue
+        entry_title = title_links[-1].get_text(strip=True)
+
+        # Magnet link
+        link_col = cols[2]
+        magnet = None
+        for a in link_col.select("a"):
+            href = a.get("href", "")
+            if href.startswith("magnet:"):
+                magnet = href
+                break
+        if not magnet:
+            continue
+
+        # Size
+        size = cols[3].get_text(strip=True)
+
+        # Seeders
+        try:
+            seeders = int(cols[5].get_text(strip=True))
+        except (ValueError, IndexError):
+            seeders = 0
+
+        items.append(RssItem(
+            title=entry_title,
+            episode=None,
+            magnet_link=magnet,
+            seeders=seeders,
+            size=size,
+        ))
+
+    return items
 
 
 def search_nyaa_batch(title: str, aliases: list[str]) -> Optional[RssItem]:
     """
-    Search Nyaa for a completed batch for *title*.
+    Search Nyaa for a completed batch using HTML scraping.
 
-    Strategy:
-    1. Search SubsPlease uploader: ?q={title}+1080p+Batch&u=subsplease
-    2. Try each alias with SubsPlease uploader
-    3. Fallback: no uploader filter, pick highest-seeded result
+    Strategy for each search term:
+    1. Try preferred uploaders in order: Judas → Ember → ASW → SubsPlease
+       Query: "{term} batch {uploader}"
+    2. Fallback: general search "{term} batch", pick most-seeded
+    3. Last resort: "{term} 1080p" without "batch" keyword
 
-    Returns the best RssItem found, or None if nothing found.
+    Returns the best RssItem found, or None.
     """
-    from filename_parser import is_non_episode
+    search_terms = _build_search_terms(title, aliases)
 
-    search_terms = [title] + aliases
+    # Step 1: Try each preferred uploader
+    for uploader in PREFERRED_UPLOADERS:
+        for term in search_terms:
+            query = f"{term} batch {uploader}"
+            results = _scrape_nyaa(query)
+            for r in results:
+                if r.seeders > 0:
+                    logger.info("Found %s batch for %r (query: %r, seeders: %d)",
+                                uploader, title, query, r.seeders)
+                    return r
 
-    # Pass 1: SubsPlease uploader
+    # Step 2: General batch search (any uploader)
     for term in search_terms:
-        result = _search_nyaa(term, uploader="subsplease")
-        if result:
-            logger.info("Found SubsPlease batch for %r (query: %r)", title, term)
-            return result
+        query = f"{term} batch"
+        results = _scrape_nyaa(query)
+        for r in results:
+            if r.seeders > 0:
+                logger.info("Found general batch for %r (query: %r, seeders: %d, title: %s)",
+                            title, query, r.seeders, r.title)
+                return r
 
-    # Pass 2: any uploader
+    # Step 3: Last resort — just "1080p" (many batches don't say "batch")
     for term in search_terms:
-        result = _search_nyaa(term, uploader=None)
-        if result:
-            logger.info("Found general batch for %r (query: %r) — not SubsPlease", title, term)
-            return result
+        query = f"{term} 1080p"
+        results = _scrape_nyaa(query)
+        for r in results:
+            if r.seeders > 0:
+                logger.info("Found 1080p release for %r (query: %r, seeders: %d, title: %s)",
+                            title, query, r.seeders, r.title)
+                return r
 
-    logger.warning("No batch found on Nyaa for %r (tried %d search terms)", title, len(search_terms))
+    logger.warning("No results on Nyaa for %r (tried %d search terms)", title, len(search_terms))
     return None
 
 
 # ---------------------------------------------------------------------------
-# Internal helpers
+# RSS helpers (for weekly polling only)
 # ---------------------------------------------------------------------------
 
-def _search_nyaa(query: str, uploader: Optional[str]) -> Optional[RssItem]:
-    """Fetch one Nyaa RSS search page and return the best (most-seeded) result."""
-    q = quote_plus(f"{query} 1080p Batch")
-    url = f"{NYAA_RSS_BASE}&q={q}"
-    if uploader:
-        url += f"&u={uploader}"
-
-    try:
-        feed = feedparser.parse(url)
-    except Exception as exc:
-        logger.error("Nyaa search failed (query=%r): %s", query, exc)
-        return None
-
-    best: Optional[RssItem] = None
-    for entry in feed.entries:
-        title = entry.get("title", "")
-        magnet = _extract_magnet(entry)
-        if not magnet:
-            continue
-        seeders = _extract_seeders(entry)
-        item = RssItem(title=title, episode=None, magnet_link=magnet, seeders=seeders)
-        if best is None or item.seeders > best.seeders:
-            best = item
-
-    return best
-
-
-def _extract_magnet(entry) -> Optional[str]:
+def _extract_rss_magnet(entry) -> Optional[str]:
     """Pull the magnet URI out of a feedparser entry."""
-    # feedparser puts custom namespaced tags in entry.tags or entry.<ns>_<tag>
-    # nyaa uses <nyaa:magnetUri>
     magnet = getattr(entry, "nyaa_magneturi", None)
     if magnet:
         return magnet
-
-    # Some mirrors put it in entry.link
     link = entry.get("link", "")
     if link.startswith("magnet:"):
         return link
-
-    # Check enclosures
     for enc in entry.get("enclosures", []):
         href = enc.get("href", "")
         if href.startswith("magnet:"):
             return href
-
     return None
 
 
-def _extract_seeders(entry) -> int:
+def _extract_rss_seeders(entry) -> int:
     """Pull seeder count from nyaa:seeders tag, defaulting to 0."""
     val = getattr(entry, "nyaa_seeders", None)
     if val is not None:
