@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import type { IngestStatus as IngestStatusType, WatchlistEntry } from '@babylon/shared';
 import { getIngestStatus, getWatchlist, removeFromWatchlist, triggerIngest } from '@/lib/api';
 import { formatRelativeTime } from '@/lib/utils';
@@ -91,14 +92,14 @@ export default function IngestStatusPanel() {
         )}
       </button>
 
-      {/* Panel */}
-      {open && (
+      {/* Panel — rendered via portal to escape navbar stacking context */}
+      {open && createPortal(
         <>
           <div
-            className="fixed inset-0 bg-black/50 z-40"
+            className="fixed inset-0 bg-black/50 z-[60]"
             onClick={() => setOpen(false)}
           />
-          <div className="fixed right-0 top-0 h-full w-96 bg-[#1a1a2e] border-l border-[#2a2a3e] z-50 flex flex-col">
+          <div className="fixed right-0 top-0 h-full w-96 bg-[#1a1a2e] border-l border-[#2a2a3e] z-[70] flex flex-col">
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-4 border-b border-[#2a2a3e]">
               <h2 className="text-white font-semibold text-lg">Ingest Status</h2>
@@ -272,7 +273,8 @@ export default function IngestStatusPanel() {
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );
