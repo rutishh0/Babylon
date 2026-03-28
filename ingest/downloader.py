@@ -98,12 +98,50 @@ def wait_for_completion(torrent_hash: str, poll_interval: int = 5, timeout: int 
     raise RuntimeError(f"Torrent {torrent_hash} timed out after {timeout}s")
 
 
+def wait_for_metadata(torrent_hash: str, poll_interval: int = 3, timeout: int = 120) -> None:
+    """
+    Wait until qBittorrent has fetched torrent metadata (file list becomes available).
+    Magnets don't have file info until metadata is downloaded from peers.
+    """
+    client = _client()
+    elapsed = 0
+    while elapsed < timeout:
+        torrents = client.torrents_info(torrent_hashes=torrent_hash)
+        if not torrents:
+            raise RuntimeError(f"Torrent {torrent_hash} not found")
+
+        state = torrents[0].state
+        # These states mean metadata is available
+        if state not in ("metaDL", "stalledDL", "checkingResumeData"):
+            # Also check if files are actually available
+            files = client.torrents_files(torrent_hash=torrent_hash)
+            if len(files) > 0:
+                logger.info("Torrent %s metadata ready (%d files, state=%s)", torrent_hash, len(files), state)
+                return
+        elif state != "metaDL":
+            files = client.torrents_files(torrent_hash=torrent_hash)
+            if len(files) > 0:
+                logger.info("Torrent %s metadata ready (%d files, state=%s)", torrent_hash, len(files), state)
+                return
+
+        logger.debug("Waiting for metadata: hash=%s state=%s", torrent_hash, state)
+        time.sleep(poll_interval)
+        elapsed += poll_interval
+
+    raise RuntimeError(f"Torrent {torrent_hash} metadata timeout after {timeout}s")
+
+
 def get_torrent_files(torrent_hash: str) -> list[TorrentFile]:
     """
     Return a list of file dicts for the torrent.
     Each dict has keys: index, name, size, priority, progress.
+    Waits for metadata if file list is empty (magnet links need time to fetch metadata).
     """
     client = _client()
+
+    # Wait for metadata first
+    wait_for_metadata(torrent_hash)
+
     files = client.torrents_files(torrent_hash=torrent_hash)
     result = []
     for f in files:
