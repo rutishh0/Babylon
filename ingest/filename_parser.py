@@ -23,8 +23,8 @@ _NON_EPISODE_KEYWORDS = [
 
 # Compiled patterns in priority order
 _PATTERNS: list[tuple[str, re.Pattern]] = [
-    # S01E03 or S1E03 (season + episode)
-    ("SxxExx", re.compile(r'\bS\d{1,2}E(\d{1,3})\b', re.IGNORECASE)),
+    # S01E03 or S1E03 or S02E11v2 (season + episode, optional version suffix)
+    ("SxxExx", re.compile(r'\bS\d{1,2}E(\d{1,3})(?:v\d+)?\b', re.IGNORECASE)),
     # " - 03 " style (SubsPlease standard)
     ("dash_ep", re.compile(r'\s-\s+(\d{1,3})(?:\s|\[|\.mkv|$)')),
     # Episode 01

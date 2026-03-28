@@ -60,6 +60,7 @@ def transcode(input_path: str, output_path: str) -> bool:
         "-c:v", "libx264",
         "-preset", "medium",
         "-crf", "23",
+        "-pix_fmt", "yuv420p",         # ensure 8-bit output for max compatibility
         "-c:a", "aac",
         "-b:a", "192k",
         "-sn",                         # no subtitle streams in output
