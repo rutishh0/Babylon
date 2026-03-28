@@ -1,3 +1,9 @@
+// ============================================================================
+// PHASE 1 — DEPRECATED. See PHASE1_DEPRECATED.md
+// This file configures the API for Scaleway S3 + UpCloud VPS hosting.
+// Phase 2 replaces S3 with local disk and runs on a local Alienware machine.
+// ============================================================================
+
 import 'dotenv/config';
 import { buildApp } from './app.js';
 
@@ -18,6 +24,7 @@ const app = await buildApp({
   pin: process.env.BABYLON_PIN,
   allowedOrigins: process.env.ALLOWED_ORIGINS?.split(','),
   s3Config,
+  localMediaPath: process.env.LOCAL_MEDIA_PATH,
   tmdbReadAccessToken: process.env.TMDB_READ_ACCESS_TOKEN,
 });
 

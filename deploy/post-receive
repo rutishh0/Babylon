@@ -1,0 +1,22 @@
+#!/bin/bash
+set -e
+
+DEPLOY_DIR="/mnt/d/Babylon/app"
+GIT_DIR="/mnt/d/Babylon/repo.git"
+
+echo "=== Deploying to $DEPLOY_DIR ==="
+git --work-tree=$DEPLOY_DIR --git-dir=$GIT_DIR checkout -f
+
+cd $DEPLOY_DIR
+
+echo "=== Installing dependencies ==="
+pnpm install --frozen-lockfile || { echo "Install failed, aborting deploy"; exit 1; }
+
+echo "=== Building ==="
+pnpm build || { echo "Build failed, aborting deploy"; exit 1; }
+
+echo "=== Reloading services ==="
+pm2.cmd reload D:/Babylon/app/deploy/ecosystem.config.cjs
+sudo systemctl restart babylon-ingest
+
+echo "=== Deploy complete ==="

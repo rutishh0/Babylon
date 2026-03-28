@@ -1,3 +1,9 @@
+# ============================================================================
+# PHASE 1 — DEPRECATED. See PHASE1_DEPRECATED.md
+# This daemon uploads to Scaleway S3 and runs on an UpCloud VPS.
+# Phase 2 replaces S3 upload with local file move and runs on a local Alienware.
+# ============================================================================
+
 """
 daemon.py — Babylon ingest daemon entry point.
 
@@ -35,7 +41,7 @@ import registrar
 import rss_poller
 import subtitle_extractor
 import transcoder
-import uploader
+import mover
 from filename_parser import is_non_episode, parse_episode
 
 logging.basicConfig(
@@ -157,10 +163,10 @@ def _process_episode(
         _cleanup(mp4_path, subs)
         return False
 
-    # 5. Upload MP4
-    s3_key = uploader.build_episode_s3_key(media_id, season, episode_num, mp4_name)
-    if not uploader.upload_file(mp4_path, s3_key):
-        logger.error("S3 upload failed for %s", mp4_name)
+    # 5. Move MP4 to local media storage
+    s3_key = mover.build_episode_path(media_id, season, episode_num, mp4_name)
+    if not mover.move_file(mp4_path, s3_key):
+        logger.error("Local move failed for %s", mp4_name)
         _cleanup(mp4_path, subs)
         return False
 
@@ -180,10 +186,10 @@ def _process_episode(
         _cleanup(mp4_path, subs)
         return False
 
-    # 7. Upload and register subtitles
+    # 7. Move and register subtitles
     for sub in subs:
-        sub_s3_key = uploader.build_subtitle_s3_key(episode_id, sub["language"])
-        if uploader.upload_file(sub["path"], sub_s3_key):
+        sub_s3_key = mover.build_subtitle_path(episode_id, sub["language"])
+        if mover.move_file(sub["path"], sub_s3_key):
             try:
                 registrar.register_subtitle(episode_id, sub["language"], sub_s3_key)
             except Exception as exc:

@@ -1,0 +1,19 @@
+[Unit]
+Description=Babylon Ingest Daemon (Phase 2 — WSL2)
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/mnt/d/Babylon/app/ingest
+EnvironmentFile=/mnt/d/Babylon/app/.env
+ExecStart=/mnt/d/Babylon/app/ingest/venv/bin/python3 daemon.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=babylon-ingest
+MemoryMax=4G
+
+[Install]
+WantedBy=multi-user.target

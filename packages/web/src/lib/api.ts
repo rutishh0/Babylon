@@ -49,6 +49,10 @@ export interface JikanSearchResult {
 
 // ── Helpers ────────────────────────────────────────────
 
+export function getApiBaseUrl(): string {
+  return process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3000/api';
+}
+
 function getPin(): string {
   if (typeof window === 'undefined') return '';
   try {
@@ -62,7 +66,7 @@ async function request<T>(
   path: string,
   options: RequestInit = {},
 ): Promise<T> {
-  const baseUrl = process.env.NEXT_PUBLIC_API_URL ?? 'https://api.internalrr.info/api';
+  const baseUrl = getApiBaseUrl();
   const url = `${baseUrl}${path}`;
 
   const pin = getPin();
@@ -164,9 +168,32 @@ export function completeUpload(input: CompleteUploadInput): Promise<void> {
 
 // ── Stream ─────────────────────────────────────────────
 
-export function getStreamUrl(id: string, episodeId?: string): Promise<{ url: string }> {
+/** Build the direct stream URL (the API streams the file with Range support). */
+export function buildStreamUrl(id: string, episodeId?: string): string {
+  const baseUrl = getApiBaseUrl();
   const params = episodeId ? `?episode_id=${encodeURIComponent(episodeId)}` : '';
-  return request<{ url: string }>(`/stream/${id}${params}`);
+  return `${baseUrl}/stream/${id}${params}`;
+}
+
+/** @deprecated Use buildStreamUrl() — the API now streams directly. */
+export function getStreamUrl(id: string, episodeId?: string): Promise<{ url: string }> {
+  return Promise.resolve({ url: buildStreamUrl(id, episodeId) });
+}
+
+export interface SubtitleInfo {
+  id: string;
+  language: string;
+  label: string;
+  format: string;
+  url: string;
+}
+
+/** Fetch available subtitles for a media item (optionally for a specific episode). */
+export function getSubtitles(id: string, episodeId?: string): Promise<SubtitleInfo[]> {
+  const params = new URLSearchParams();
+  if (episodeId) params.set('episode_id', episodeId);
+  const qs = params.toString();
+  return request<SubtitleInfo[]>(`/stream/${id}/subtitle${qs ? `?${qs}` : ''}`);
 }
 
 export function getSubtitleUrl(id: string, episodeId: string, language: string): Promise<{ url: string }> {

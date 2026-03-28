@@ -1,15 +1,18 @@
 """
-transcoder.py — FFmpeg MKV → MP4 transcoding wrapper.
+transcoder.py — FFmpeg MKV → MP4 transcoding wrapper (NVENC hardware encoding).
 
 Command used:
-  ffmpeg -i input.mkv -c:v libx264 -preset medium -crf 23
+  ffmpeg -i input.mkv -c:v h264_nvenc -preset p4 -cq 23
          -c:a aac -b:a 192k -sn -movflags +faststart output.mp4
 
-  -sn              strip subtitle streams (extracted separately as .vtt)
+  -c:v h264_nvenc   NVIDIA hardware encoder (requires GPU)
+  -preset p4        balanced quality/speed preset
+  -cq 23            constant-quality rate control
+  -sn               strip subtitle streams (extracted separately as .vtt)
   -movflags +faststart  move moov atom to file start (progressive streaming)
 
-Expected performance on the 6-vCPU VPS:
-  ~3–8 minutes per 24-min 1080p episode with libx264 preset medium.
+Expected performance on the Alienware (RTX GPU + NVENC):
+  ~30–90 seconds per 24-min 1080p episode with h264_nvenc preset p4.
 """
 
 import json
@@ -46,7 +49,7 @@ def get_duration(video_path: str) -> Optional[float]:
 
 def transcode(input_path: str, output_path: str) -> bool:
     """
-    Transcode *input_path* (MKV) to *output_path* (MP4) using libx264 + AAC.
+    Transcode *input_path* (MKV) to *output_path* (MP4) using h264_nvenc + AAC.
 
     Returns True on success, False on failure.
     Raises no exceptions — errors are logged and False is returned.
@@ -57,12 +60,11 @@ def transcode(input_path: str, output_path: str) -> bool:
         "ffmpeg",
         "-y",                          # overwrite output if exists
         "-i", input_path,
-        "-c:v", "libx264",
-        "-preset", "medium",
-        "-crf", "23",
-        "-pix_fmt", "yuv420p",         # ensure 8-bit output for max compatibility
-        "-c:a", "aac",
-        "-b:a", "192k",
+        "-c:v", "h264_nvenc",          # NVIDIA hardware encoder
+        "-preset", "p4",               # balanced quality/speed
+        "-cq", "23",                   # constant-quality rate control
+        "-c:a", "aac",                 # AAC audio encoding
+        "-b:a", "192k",               # audio bitrate
         "-sn",                         # no subtitle streams in output
         "-movflags", "+faststart",     # progressive streaming
         output_path,
@@ -76,7 +78,7 @@ def transcode(input_path: str, output_path: str) -> bool:
             capture_output=True,
             text=True,
             check=True,
-            timeout=3600,  # 1-hour timeout — plenty for a 24-min episode
+            timeout=7200,  # 2-hour timeout — HEVC 10-bit decoding is slow
         )
         size_mb = os.path.getsize(output_path) / (1024 * 1024)
         logger.info("Transcode complete: %s (%.1f MB)", os.path.basename(output_path), size_mb)

@@ -12,6 +12,7 @@ import libraryRoutes from './routes/library.js';
 import ingestRoutes from './routes/ingest.js';
 import type Database from 'better-sqlite3';
 import { createS3Client, type S3, type S3Config } from './lib/s3.js';
+import { createLocalStorage, type LocalStorageService } from './lib/local-storage.js';
 import { createTmdbClient, type TMDB } from './lib/tmdb.js';
 import { createJikanClient, type Jikan } from './lib/jikan.js';
 import { createWatchlistManager, type WatchlistManager } from './lib/watchlist.js';
@@ -23,6 +24,8 @@ export interface AppOptions {
   /** Disable rate limiting (useful for tests) */
   disableRateLimit?: boolean;
   s3Config?: S3Config;
+  /** Phase 2: absolute path to local media directory (replaces S3) */
+  localMediaPath?: string;
   tmdbReadAccessToken?: string;
   ingestStateDir?: string;
 }
@@ -32,6 +35,7 @@ declare module 'fastify' {
     db: DB;
     sqlite: Database.Database;
     s3: S3;
+    storage: LocalStorageService;
     tmdb: TMDB;
     jikan: Jikan;
     watchlist: WatchlistManager;
@@ -48,7 +52,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   app.decorate('sqlite', sqlite);
   app.addHook('onClose', () => sqlite.close());
 
-  // S3 client (optional — skipped when no s3Config provided)
+  // Phase 2: local storage (preferred over S3 when localMediaPath is set)
+  if (options.localMediaPath) {
+    const storage = createLocalStorage(options.localMediaPath);
+    app.decorate('storage', storage);
+  }
+
+  // S3 client (optional — Phase 1 fallback, skipped when no s3Config provided)
   if (options.s3Config) {
     const s3 = createS3Client(options.s3Config);
     app.decorate('s3', s3);

@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import type { MediaResponse } from '@babylon/shared';
-import { getStreamUrl, getSubtitleUrl } from '@/lib/api';
+import { buildStreamUrl, getSubtitles, getApiBaseUrl } from '@/lib/api';
 import Player from './Player';
 
 interface SubtitleTrack {
@@ -17,7 +17,9 @@ interface Props {
 }
 
 export default function PlayerPage({ media, episodeId }: Props) {
-  const [streamUrl, setStreamUrl] = useState<string | null>(null);
+  // Stream URL is constructed directly — the API streams the file with Range support
+  const streamUrl = useMemo(() => buildStreamUrl(media.id, episodeId), [media.id, episodeId]);
+
   const [subtitles, setSubtitles] = useState<SubtitleTrack[]>([]);
   const [initialPosition, setInitialPosition] = useState<number | undefined>(undefined);
   const [error, setError] = useState('');
@@ -25,33 +27,18 @@ export default function PlayerPage({ media, episodeId }: Props) {
   useEffect(() => {
     async function load() {
       try {
-        const { url } = await getStreamUrl(media.id, episodeId);
-        setStreamUrl(url);
-
-        // Find available subtitle languages from episode
-        const availableSubs: string[] = [];
-        if (media.seasons && episodeId) {
-          for (const season of media.seasons) {
-            for (const ep of season.episodes) {
-              if (ep.id === episodeId) {
-                // API doesn't directly expose subtitle list on episode; common approach:
-                // try fetching known languages
-                break;
-              }
-            }
-          }
-        }
-
-        // Attempt to load subtitle tracks
-        const subTracks: SubtitleTrack[] = [];
-        for (const lang of availableSubs) {
-          try {
-            const { url: subUrl } = await getSubtitleUrl(media.id, episodeId!, lang);
-            subTracks.push({ url: subUrl, language: lang, label: lang.toUpperCase() });
-          } catch {
-            // skip
-          }
-        }
+        // Fetch available subtitles from the API
+        const baseUrl = getApiBaseUrl();
+        const subs = await getSubtitles(media.id, episodeId);
+        const subTracks: SubtitleTrack[] = subs
+          .filter((s) => s.url)
+          .map((s) => ({
+            // The API returns relative URLs like /api/stream/:id/subtitle-file?path=...
+            // Prepend base URL to make them absolute
+            url: s.url.startsWith('http') ? s.url : `${baseUrl}${s.url.startsWith('/api') ? s.url.replace(/^\/api/, '') : s.url}`,
+            language: s.language,
+            label: s.label || s.language.toUpperCase(),
+          }));
         setSubtitles(subTracks);
 
         // Find initial position
@@ -85,14 +72,6 @@ export default function PlayerPage({ media, episodeId }: Props) {
             Go Back
           </button>
         </div>
-      </div>
-    );
-  }
-
-  if (!streamUrl) {
-    return (
-      <div className="fixed inset-0 bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }

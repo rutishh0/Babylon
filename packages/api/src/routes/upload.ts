@@ -7,10 +7,6 @@ import { media, mediaFile, episode } from '../db/schema.js';
 const uploadRoutes: FastifyPluginAsync = async (app) => {
   // POST /api/upload/initiate
   app.post('/api/upload/initiate', async (request, reply) => {
-    if (!app.s3) {
-      return reply.status(503).send({ error: 'S3 client not configured' });
-    }
-
     const parseResult = InitiateUploadSchema.safeParse(request.body);
     if (!parseResult.success) {
       return reply
@@ -23,6 +19,21 @@ const uploadRoutes: FastifyPluginAsync = async (app) => {
     const rows = app.db.select().from(media).where(eq(media.id, input.mediaId)).all();
     if (rows.length === 0) {
       return reply.status(404).send({ error: 'Media not found' });
+    }
+
+    // Phase 2: local storage — return the expected local path (no presigned URL needed)
+    if (app.storage) {
+      const s3Key = app.storage.buildKey(input.type, input.mediaId, {
+        seasonNumber: input.seasonNumber,
+        episodeNumber: input.episodeNumber,
+        filename: input.filename,
+      });
+      return reply.send({ uploadUrl: null, s3Key });
+    }
+
+    // Phase 1 fallback: S3 presigned URL
+    if (!app.s3) {
+      return reply.status(503).send({ error: 'Storage not configured' });
     }
 
     const s3Key = app.s3.buildKey(input.type, input.mediaId, {
@@ -94,10 +105,6 @@ const uploadRoutes: FastifyPluginAsync = async (app) => {
 
   // POST /api/upload/bulk
   app.post('/api/upload/bulk', async (request, reply) => {
-    if (!app.s3) {
-      return reply.status(503).send({ error: 'S3 client not configured' });
-    }
-
     const body = request.body as Array<{
       filename: string;
       contentType: string;
@@ -109,6 +116,29 @@ const uploadRoutes: FastifyPluginAsync = async (app) => {
 
     if (!Array.isArray(body)) {
       return reply.status(400).send({ error: 'Request body must be an array' });
+    }
+
+    // Phase 2: local storage — return expected local paths
+    if (app.storage) {
+      const results = body.map((item) => {
+        const parseResult = InitiateUploadSchema.safeParse(item);
+        if (!parseResult.success) {
+          return { error: 'Invalid item', details: parseResult.error.flatten() };
+        }
+        const input = parseResult.data;
+        const s3Key = app.storage.buildKey(input.type, input.mediaId, {
+          seasonNumber: input.seasonNumber,
+          episodeNumber: input.episodeNumber,
+          filename: input.filename,
+        });
+        return { uploadUrl: null, s3Key };
+      });
+      return reply.send(results);
+    }
+
+    // Phase 1 fallback: S3 presigned URLs
+    if (!app.s3) {
+      return reply.status(503).send({ error: 'Storage not configured' });
     }
 
     const results = await Promise.all(

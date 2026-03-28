@@ -16,12 +16,8 @@ def _optional(key: str, default: str = "") -> str:
     return os.environ.get(key, default)
 
 
-# Scaleway S3
-SCALEWAY_ACCESS_KEY: str = _require("SCALEWAY_ACCESS_KEY")
-SCALEWAY_SECRET_KEY: str = _require("SCALEWAY_SECRET_KEY")
-SCALEWAY_BUCKET: str = _require("SCALEWAY_BUCKET")
-SCALEWAY_REGION: str = _require("SCALEWAY_REGION")
-SCALEWAY_ENDPOINT: str = _require("SCALEWAY_ENDPOINT")
+# Local media storage
+LOCAL_MEDIA_PATH: str = _require("LOCAL_MEDIA_PATH")
 
 # qBittorrent
 QBITTORRENT_HOST: str = _optional("QBITTORRENT_HOST", "http://127.0.0.1:8080")
