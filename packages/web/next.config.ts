@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: 's3.nl-ams.scw.cloud' },
       { protocol: 'https', hostname: '*.scw.cloud' },
       { protocol: 'https', hostname: 'cdn.myanimelist.net' },
+      { protocol: 'https', hostname: 'myanimelist.net' },
     ],
   },
   // typedRoutes: true, // disabled to allow dynamic route strings
