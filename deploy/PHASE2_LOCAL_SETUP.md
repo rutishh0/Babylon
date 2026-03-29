@@ -12,7 +12,7 @@ Open PowerShell on the Alienware and check available space:
 Get-PSDrive D
 ```
 
-If you don't have a D: drive, check C: instead:
+If you don't have a B: drive, check C: instead:
 
 ```powershell
 Get-PSDrive C
@@ -216,15 +216,15 @@ npm install -g pm2
 Open **PowerShell** on the Alienware and create the folder layout:
 
 ```powershell
-mkdir D:\Babylon\app
-mkdir D:\Babylon\media
-mkdir D:\Babylon\data
-mkdir D:\Babylon\downloads\raw
-mkdir D:\Babylon\downloads\processed
-mkdir D:\Babylon\repo.git
+mkdir B:\Babylon\app
+mkdir B:\Babylon\media
+mkdir B:\Babylon\data
+mkdir B:\Babylon\downloads\raw
+mkdir B:\Babylon\downloads\processed
+mkdir B:\Babylon\repo.git
 ```
 
-If you don't have a D: drive, substitute `C:\Babylon` everywhere (and update all paths in `.env` and `ecosystem.config.cjs` accordingly).
+If you don't have a B: drive, substitute `C:\Babylon` everywhere (and update all paths in `.env` and `ecosystem.config.cjs` accordingly).
 
 ---
 
@@ -233,7 +233,7 @@ If you don't have a D: drive, substitute `C:\Babylon` everywhere (and update all
 ### On the Alienware (WSL2 Ubuntu terminal)
 
 ```bash
-cd /mnt/d/Babylon
+cd /mnt/b/Babylon
 git init --bare repo.git
 ```
 
@@ -243,7 +243,7 @@ On your **dev machine** (laptop, desktop -- not the Alienware):
 
 ```bash
 # Add the Alienware as a git remote
-git remote add alienware ssh://<your-username>@<ALIENWARE-LAN-IP>/mnt/d/Babylon/repo.git
+git remote add alienware ssh://<your-username>@<ALIENWARE-LAN-IP>/mnt/b/Babylon/repo.git
 
 # Push the code
 git push alienware master
@@ -256,8 +256,8 @@ Replace `<your-username>` with your WSL2 Ubuntu username and `<ALIENWARE-LAN-IP>
 Back on the Alienware (WSL2 Ubuntu terminal):
 
 ```bash
-cp /mnt/d/Babylon/app/deploy/post-receive /mnt/d/Babylon/repo.git/hooks/post-receive
-chmod +x /mnt/d/Babylon/repo.git/hooks/post-receive
+cp /mnt/b/Babylon/app/deploy/post-receive /mnt/b/Babylon/repo.git/hooks/post-receive
+chmod +x /mnt/b/Babylon/repo.git/hooks/post-receive
 ```
 
 From now on, every `git push alienware master` will automatically deploy, build, and reload services.
@@ -271,10 +271,10 @@ On the Alienware, copy the example env file and fill in your real values:
 **PowerShell:**
 
 ```powershell
-Copy-Item D:\Babylon\app\deploy\.env.phase2.example D:\Babylon\app\.env
+Copy-Item B:\Babylon\app\deploy\.env.phase2.example B:\Babylon\app\.env
 ```
 
-**Then edit `D:\Babylon\app\.env`** with your actual values:
+**Then edit `B:\Babylon\app\.env`** with your actual values:
 
 - `BABYLON_PIN` -- choose a PIN for the app
 - `TMDB_API_KEY` -- your TMDB API key
@@ -291,7 +291,7 @@ All of these commands run inside the **WSL2 Ubuntu terminal**.
 ### Create the virtual environment and install dependencies
 
 ```bash
-cd /mnt/d/Babylon/app/ingest
+cd /mnt/b/Babylon/app/ingest
 python3.12 -m venv venv
 source venv/bin/activate
 pip install -r requirements.txt
@@ -301,7 +301,7 @@ pip install beautifulsoup4 lxml
 ### Install and start the systemd service
 
 ```bash
-sudo cp /mnt/d/Babylon/app/deploy/babylon-ingest-wsl2.service /etc/systemd/system/babylon-ingest.service
+sudo cp /mnt/b/Babylon/app/deploy/babylon-ingest-wsl2.service /etc/systemd/system/babylon-ingest.service
 sudo systemctl daemon-reload
 sudo systemctl enable babylon-ingest
 sudo systemctl start babylon-ingest
@@ -328,7 +328,7 @@ Open **PowerShell** on the Alienware.
 ### Start the services
 
 ```powershell
-cd D:\Babylon\app
+cd B:\Babylon\app
 pm2 start deploy\ecosystem.config.cjs
 pm2 save
 ```

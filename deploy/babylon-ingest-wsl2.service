@@ -5,9 +5,9 @@ After=network.target
 [Service]
 Type=simple
 User=root
-WorkingDirectory=/mnt/d/Babylon/app/ingest
-EnvironmentFile=/mnt/d/Babylon/app/.env
-ExecStart=/mnt/d/Babylon/app/ingest/venv/bin/python3 daemon.py
+WorkingDirectory=/mnt/b/Babylon/app/ingest
+EnvironmentFile=/mnt/b/Babylon/app/.env
+ExecStart=/mnt/b/Babylon/app/ingest/venv/bin/python3 daemon.py
 Restart=always
 RestartSec=10
 StandardOutput=journal

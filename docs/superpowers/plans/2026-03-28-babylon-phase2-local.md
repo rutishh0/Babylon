@@ -5,7 +5,7 @@
 **Goal:** Migrate Babylon from cloud hosting (UpCloud VPS + Scaleway S3 + Vercel) to local hosting on an Alienware M15 R2 connected via Ethernet to the home LAN. Zero monthly cost. Zero-touch operation after initial setup.
 
 **Exactly two changes from Phase 1:**
-1. **Storage:** Scaleway S3 → local disk (`D:\Babylon\media`)
+1. **Storage:** Scaleway S3 → local disk (`B:\Babylon\media`)
 2. **Hosting:** UpCloud VPS + Vercel → local Alienware (API :3000, Web :3001)
 
 **Everything else is identical:** database schema, API routes, ingest pipeline logic (RSS polling, Nyaa scraping, qBittorrent, subtitle extraction, Jikan metadata), frontend UI, Android app.
@@ -173,7 +173,7 @@ if (options.localMediaPath) {
 **Changes to `index.ts`:**
 ```typescript
 // Replace s3Config block with:
-localMediaPath: process.env.LOCAL_MEDIA_PATH || 'D:/Babylon/media',
+localMediaPath: process.env.LOCAL_MEDIA_PATH || 'B:/Babylon/media',
 ```
 
 **Update FastifyInstance declaration:**
@@ -217,7 +217,7 @@ def build_subtitle_path(episode_id, language, fmt="vtt") -> str:
 **Implementation:**
 - Uses `shutil.move()` for atomic move (same filesystem)
 - Creates parent directories with `os.makedirs(exist_ok=True)`
-- `LOCAL_MEDIA_PATH` read from config (maps to `/mnt/d/Babylon/media` in WSL2)
+- `LOCAL_MEDIA_PATH` read from config (maps to `/mnt/b/Babylon/media` in WSL2)
 
 **Tests (pytest):**
 - [ ] `move_file` creates directories and moves file
@@ -272,7 +272,7 @@ Performance: ~30-60 seconds per 24-min 1080p episode on RTX 2070 (vs 1+ hour CPU
 SCALEWAY_ACCESS_KEY, SCALEWAY_SECRET_KEY, SCALEWAY_BUCKET, SCALEWAY_REGION, SCALEWAY_ENDPOINT
 
 # Add:
-LOCAL_MEDIA_PATH: str = _require("LOCAL_MEDIA_PATH")  # e.g. /mnt/d/Babylon/media
+LOCAL_MEDIA_PATH: str = _require("LOCAL_MEDIA_PATH")  # e.g. /mnt/b/Babylon/media
 ```
 
 **Changes to `registrar.py`:**
@@ -357,13 +357,13 @@ module.exports = {
   apps: [
     {
       name: 'babylon-api',
-      cwd: 'D:/Babylon/app/packages/api',
+      cwd: 'B:/Babylon/app/packages/api',
       script: 'dist/index.js',
       env: { NODE_ENV: 'production', PORT: '3000' },
     },
     {
       name: 'babylon-web',
-      cwd: 'D:/Babylon/app/packages/web',
+      cwd: 'B:/Babylon/app/packages/web',
       script: 'node_modules/.bin/next',
       args: 'start -p 3001',
       env: { NODE_ENV: 'production' },
@@ -376,8 +376,8 @@ module.exports = {
 ```bash
 #!/bin/bash
 set -e
-DEPLOY_DIR="/mnt/d/Babylon/app"
-GIT_DIR="/mnt/d/Babylon/repo.git"
+DEPLOY_DIR="/mnt/b/Babylon/app"
+GIT_DIR="/mnt/b/Babylon/repo.git"
 
 echo "=== Deploying to $DEPLOY_DIR ==="
 git --work-tree=$DEPLOY_DIR --git-dir=$GIT_DIR checkout -f
@@ -439,7 +439,7 @@ echo "=== Deploy complete ==="
 
 4. **Directory Structure**
    ```
-   D:\Babylon\
+   B:\Babylon\
    ├── app\              # git working tree (code checkout)
    ├── media\            # transcoded MP4s + subtitles
    ├── data\             # babylon.db SQLite database
@@ -450,20 +450,20 @@ echo "=== Deploy complete ==="
    ```
 
 5. **Git Remote Setup**
-   - Initialize bare repo: `git init --bare D:\Babylon\repo.git` (via WSL2: `/mnt/d/Babylon/repo.git`)
+   - Initialize bare repo: `git init --bare B:\Babylon\repo.git` (via WSL2: `/mnt/b/Babylon/repo.git`)
    - Install post-receive hook
-   - Add remote on dev machine: `git remote add alienware ssh://user@<LAN-IP>/mnt/d/Babylon/repo.git`
+   - Add remote on dev machine: `git remote add alienware ssh://user@<LAN-IP>/mnt/b/Babylon/repo.git`
    - First push: `git push alienware master`
 
 6. **WSL2 Ingest Daemon Setup**
-   - Create Python venv in `/mnt/d/Babylon/app/ingest/`
+   - Create Python venv in `/mnt/b/Babylon/app/ingest/`
    - Install requirements
    - Enable systemd in WSL2 (`/etc/wsl.conf` → `[boot] systemd=true`)
    - Install `babylon-ingest.service` with WSL2 paths
    - Enable and start service
 
 7. **PM2 Setup**
-   - Copy `.env.phase2` to `D:\Babylon\app\.env`
+   - Copy `.env.phase2` to `B:\Babylon\app\.env`
    - Start processes: `pm2 start ecosystem.config.cjs`
    - Save: `pm2 save`
    - Configure startup: PM2 Windows startup script or Task Scheduler
@@ -503,8 +503,8 @@ The Alienware has a 512GB SSD shared with Windows. The math is tight:
 
 **Before executing this plan, check actual free space on the Alienware.**
 
-- If D: drive exists and has **300GB+ free**: proceed as planned
-- If D: drive has **200-300GB free**: proceed but limit watchlist to ~40 titles initially, monitor disk
-- If D: drive has **< 200GB free** or doesn't exist: **STOP. An external USB drive is required from day one.** The setup guide must configure the external drive as the media storage path before any ingest runs.
+- If B: drive exists and has **300GB+ free**: proceed as planned
+- If B: drive has **200-300GB free**: proceed but limit watchlist to ~40 titles initially, monitor disk
+- If B: drive has **< 200GB free** or doesn't exist: **STOP. An external USB drive is required from day one.** The setup guide must configure the external drive as the media storage path before any ingest runs.
 
 The setup guide's first step is a disk space check with explicit go/no-go criteria.

@@ -4,15 +4,15 @@ module.exports = {
   apps: [
     {
       name: 'babylon-api',
-      cwd: 'D:/Babylon/app',
+      cwd: 'B:/Babylon/app',
       script: 'packages/api/dist/index.js',
       env: {
         NODE_ENV: 'production',
         PORT: '3000',
-        LOCAL_MEDIA_PATH: 'D:/Babylon/media',
-        DATABASE_URL: 'file:D:/Babylon/data/babylon.db',
+        LOCAL_MEDIA_PATH: 'B:/Babylon/media',
+        DATABASE_URL: 'file:B:/Babylon/data/babylon.db',
         ALLOWED_ORIGINS: 'http://localhost:3001',
-        INGEST_STATE_DIR: 'D:/Babylon/app/ingest',
+        INGEST_STATE_DIR: 'B:/Babylon/app/ingest',
       },
       node_args: '--experimental-vm-modules',
       watch: false,
@@ -21,7 +21,7 @@ module.exports = {
     },
     {
       name: 'babylon-web',
-      cwd: 'D:/Babylon/app/packages/web',
+      cwd: 'B:/Babylon/app/packages/web',
       script: 'node_modules/.bin/next',
       args: 'start -p 3001',
       env: {

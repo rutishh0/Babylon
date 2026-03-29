@@ -24,11 +24,11 @@ Write-Host "========================================`n" -ForegroundColor Cyan
 
 Write-Host "[0/10] Pre-flight checks..." -ForegroundColor Yellow
 
-# Check if D: drive exists
+# Check if B: drive exists
 $targetDrive = "D:"
 if (-not (Test-Path "$targetDrive\")) {
     $targetDrive = "C:"
-    Write-Host "  WARNING: D: drive not found. Using C: instead." -ForegroundColor Red
+    Write-Host "  WARNING: B: drive not found. Using C: instead." -ForegroundColor Red
 }
 
 # Check disk space
@@ -291,7 +291,7 @@ sudo apt-get install -y python3.12 python3.12-venv python3-pip ffmpeg 2>/dev/nul
 sudo apt-get install -y python3 python3-venv python3-pip ffmpeg
 
 # Setup Python venv
-INGEST_DIR="/mnt/d/Babylon/app/ingest"
+INGEST_DIR="/mnt/b/Babylon/app/ingest"
 if [ -d "$INGEST_DIR" ]; then
     cd "$INGEST_DIR"
     python3 -m venv venv 2>/dev/null || python3.12 -m venv venv
@@ -302,27 +302,27 @@ if [ -d "$INGEST_DIR" ]; then
 fi
 
 # Create .env for the ingest daemon
-cat > /mnt/d/Babylon/app/ingest/.env << 'ENVEOF'
-LOCAL_MEDIA_PATH=/mnt/d/Babylon/media
-DOWNLOAD_DIR=/mnt/d/Babylon/downloads/raw
-PROCESSED_DIR=/mnt/d/Babylon/downloads/processed
-INGEST_STATE_DIR=/mnt/d/Babylon/app/ingest
+cat > /mnt/b/Babylon/app/ingest/.env << 'ENVEOF'
+LOCAL_MEDIA_PATH=/mnt/b/Babylon/media
+DOWNLOAD_DIR=/mnt/b/Babylon/downloads/raw
+PROCESSED_DIR=/mnt/b/Babylon/downloads/processed
+INGEST_STATE_DIR=/mnt/b/Babylon/app/ingest
 INGEST_POLL_INTERVAL=300
 BABYLON_API_URL=http://localhost:3000
 BABYLON_PIN=
 QBITTORRENT_HOST=http://localhost:8080
 QBITTORRENT_USER=admin
 QBITTORRENT_PASS=adminadmin
-DATABASE_URL=file:///mnt/d/Babylon/data/babylon.db
+DATABASE_URL=file:///mnt/b/Babylon/data/babylon.db
 TMDB_API_KEY=bab4f1103df2e22a6e5d472944163962
 TMDB_READ_ACCESS_TOKEN=eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiYWI0ZjExMDNkZjJlMjJhNmU1ZDQ3Mjk0NDE2Mzk2MiIsIm5iZiI6MTc3NDYxNTE4Mi4zOTgwMDAyLCJzdWIiOiI2OWM2N2E4ZWQ3NDE1NTMzNGU0MjFmMWIiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.cQl9vnKyBeyVsmEa801pn3dcwkRNCG06BLiPWNI8E1w
 ENVEOF
 
 # Install systemd service
-if [ -f "/mnt/d/Babylon/app/deploy/babylon-ingest-wsl2.service" ]; then
-    sudo cp /mnt/d/Babylon/app/deploy/babylon-ingest-wsl2.service /etc/systemd/system/babylon-ingest.service
+if [ -f "/mnt/b/Babylon/app/deploy/babylon-ingest-wsl2.service" ]; then
+    sudo cp /mnt/b/Babylon/app/deploy/babylon-ingest-wsl2.service /etc/systemd/system/babylon-ingest.service
     # Fix the EnvironmentFile path to point to the ingest .env
-    sudo sed -i 's|EnvironmentFile=.*|EnvironmentFile=/mnt/d/Babylon/app/ingest/.env|' /etc/systemd/system/babylon-ingest.service
+    sudo sed -i 's|EnvironmentFile=.*|EnvironmentFile=/mnt/b/Babylon/app/ingest/.env|' /etc/systemd/system/babylon-ingest.service
     sudo systemctl daemon-reload
     sudo systemctl enable babylon-ingest
     sudo systemctl start babylon-ingest || echo "Note: systemd may not be running yet. Restart WSL2 first."
