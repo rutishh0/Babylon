@@ -1,0 +1,231 @@
+PHASE 2 PIVOT — Read this fully before touching any files.
+
+================================================================
+PART 1: DOCUMENT AND DEPRECATE PHASE 1 (do this first)
+================================================================
+
+Before making any changes, produce a complete Phase 1 retrospective document 
+saved to docs/superpowers/specs/2026-03-28-babylon-phase1-retrospective.md.
+
+It must cover:
+- Full summary of what was built (all 5 plans, all packages)
+- Current deployment state: what is live, what is not
+- Known issues at time of deprecation (Scaleway account locked/out of credits, 
+  backlog crawler not yet working, ingest daemon status unknown)
+- All credentials and env vars used (redact secrets but name every variable)
+- Every external service dependency: Scaleway, Vercel, UpCloud VPS, TMDB API, Jikan API
+- The git commit history summary (run git log --oneline)
+- What worked, what didn't, what was never executed
+
+Phase 1 code is NOT deleted. It stays in the repository exactly as-is.
+Mark it deprecated with the following actions only:
+1. Add a PHASE1_DEPRECATED.md at the repo root explaining the pivot
+2. Add a comment block at the top of packages/api/src/index.ts, 
+   ingest/daemon.py, and packages/web/src/app/layout.tsx saying 
+   "PHASE 1 — DEPRECATED. See PHASE1_DEPRECATED.md"
+3. Do NOT modify any Phase 1 logic, routes, schemas, or tests
+
+External services to be shut down by me manually (do not automate this):
+- Vercel deployment (packages/web) — I will delete the project on vercel.com
+- Scaleway Object Storage — account suspended, to be reviewed later
+- UpCloud VPS ($112/month) — I will shut this down once Phase 2 is working
+
+================================================================
+PART 2: PHASE 2 — WHAT CHANGES AND WHAT DOESN'T
+================================================================
+
+Phase 2 has exactly two changes from Phase 1:
+
+1. WHERE FILES ARE STORED: Scaleway Object Storage → local disk on my Alienware
+2. WHERE THE APP IS HOSTED: UpCloud VPS + Vercel → local Alienware on my home WiFi
+
+NOTHING ELSE CHANGES. Specifically:
+- The ingest pipeline is identical: RSS polling, Nyaa HTML scraping, 
+  qBittorrent, FFmpeg transcode, Jikan metadata registration — all untouched
+- The database schema is identical
+- The API routes are identical
+- The Android app is identical
+- The frontend UI is identical
+- TMDB and Jikan metadata fetching is identical
+
+I will access everything exclusively on my home WiFi network.
+No remote access. No Tailscale. No domain. Just LAN IP.
+
+--- ALIENWARE (host machine) ---
+OS: Windows 10 22H2 with WSL2 Ubuntu
+Hardware: Alienware M15 R2 — Intel Core i7-9750H, NVIDIA RTX 2070,
+          512GB SSD, 16GB RAM
+Network: Connected via Ethernet to home router (not WiFi) —
+         assign a static LAN IP in the router admin panel so the
+         address never changes between reboots
+Media storage path: D:\Babylon\media (confirm with me if the D: drive
+                    is not available or has insufficient space)
+Access: http://<alienware-lan-ip>:3000 (API) and
+        http://<alienware-lan-ip>:3001 (web)
+
+Performance notes Claude must account for:
+- 512GB SSD is shared with Windows and everything else — before writing
+  any paths into config, run a disk space check and flag it if free space
+  on D: (or C: if D: doesn't exist) is under 200GB. If space is tight,
+  flag it and suggest an external drive path instead
+- 16GB RAM is sufficient for running the API, Next.js, and the ingest
+  daemon simultaneously with no concern
+- The RTX 2070 is available for hardware-accelerated FFmpeg transcoding
+  via NVENC. The FFmpeg transcode command in mover.py MUST use NVENC
+  instead of libx264:
+
+  ffmpeg -i input.mkv -c:v h264_nvenc -preset p4 -cq 23 \
+         -c:a aac -b:a 192k -movflags +faststart output.mp4
+
+  This reduces a 24-minute 1080p episode transcode from ~5 minutes (CPU)
+  to ~30-60 seconds on the RTX 2070, keeping the CPU free for everything
+  else running concurrently. Do not use libx264 anywhere in Phase 2.
+- WSL2 accesses Windows drives at /mnt/d/ — the ingest daemon running
+  in WSL2 must write to /mnt/d/Babylon/media which maps to D:\Babylon\media
+  on the Windows side. All ingest daemon paths must use the /mnt/d/ prefix.
+
+--- CHANGE 1: STORAGE LAYER ---
+
+Replace Scaleway S3 with local disk. This is the only change to the API and daemon.
+
+In packages/api/:
+- Replace S3Client and all presigned URL logic with a LocalStorageService class
+- LocalStorageService reads files from LOCAL_MEDIA_PATH using Node.js fs streams
+- GET /stream/:id streams the file directly from disk with full HTTP Range
+  request support (Accept-Ranges: bytes) so seeking works in the video player
+- GET /stream/:id/subtitle reads the subtitle file from disk and returns it
+- Upload endpoints (used by the ingest daemon's registrar) accept a local
+  file path instead of an S3 key
+- The s3_key column in the DB is repurposed to store a relative local path
+  (e.g. anime/01JTXYZ/s1/e1/episode.mp4) — no schema migration needed,
+  just a semantic change
+- Remove all boto3/S3 environment variables from config
+
+In ingest/:
+- Remove uploader.py entirely (no S3 upload step)
+- Replace it with mover.py: after FFmpeg transcodes the .mp4, move it to
+  LOCAL_MEDIA_PATH/<s3_key_convention_path> using the /mnt/d/ WSL2 path
+- Update registrar.py to pass the local relative path instead of an S3 key
+- Update the FFmpeg command in transcoder.py to use h264_nvenc as described above
+- Everything else in the daemon — RSS polling, Nyaa HTML scraping, qBittorrent
+  integration, filename parsing, backlog mode, sequential batch downloading,
+  subtitle extraction, Jikan metadata registration — is completely untouched
+
+--- CHANGE 2: HOSTING ---
+
+The API, frontend, and ingest daemon all run on the Alienware instead of
+the VPS and Vercel.
+
+API: run with PM2 on Windows
+     pm2 start dist/index.js --name babylon-api
+Frontend: run with next start on port 3001
+     pm2 start npm --name babylon-web -- start
+Ingest daemon: runs in WSL2, same as it would have on the VPS
+qBittorrent: Windows native install, WebUI on localhost:8080
+
+--- NEW ENV VARIABLES ---
+
+Replace all Scaleway/VPS vars with these:
+
+# Storage — local disk
+LOCAL_MEDIA_PATH=D:/Babylon/media
+DOWNLOAD_DIR=/mnt/d/Babylon/downloads/raw
+PROCESSED_DIR=/mnt/d/Babylon/downloads/processed
+
+# API
+PORT=3000
+DATABASE_URL=file:D:/Babylon/data/babylon.db
+BABYLON_PIN=<optional>
+ALLOWED_ORIGINS=http://localhost:3001,http://<alienware-lan-ip>:3001
+
+# Metadata (unchanged)
+TMDB_API_KEY=bab4f1103df2e22a6e5d472944163962
+TMDB_READ_ACCESS_TOKEN=eyJhbGciOiJIUzI1NiJ9.eyJhdWQiOiJiYWI0ZjExMDNkZjJlMjJhNmU1ZDQ3Mjk0NDE2Mzk2MiIsIm5iZiI6MTc3NDYxNTE4Mi4zOTgwMDAyLCJzdWIiOiI2OWM2N2E4ZWQ3NDE1NTMzNGU0MjFmMWIiLCJzY29wZXMiOlsiYXBpX3JlYWQiXSwidmVyc2lvbiI6MX0.cQl9vnKyBeyVsmEa801pn3dcwkRNCG06BLiPWNI8E1w
+
+# Ingest (unchanged except no Scaleway vars)
+QBITTORRENT_HOST=http://127.0.0.1:8080
+QBITTORRENT_USER=admin
+QBITTORRENT_PASS=<your password>
+INGEST_POLL_INTERVAL=300
+BABYLON_API_URL=http://127.0.0.1:3000
+
+--- ZERO-TOUCH OPERATION REQUIREMENT ---
+
+The Alienware must be completely hands-off once set up. I will never physically
+interact with it after initial setup. It just sits connected to the router via
+Ethernet and runs. Every change I make to the codebase on my development machine
+must automatically sync to and restart on the Alienware without me touching it.
+
+This requirement affects how everything is deployed and updated:
+
+1. AUTO-SYNC VIA GIT + PM2
+   Set up a bare git remote on the Alienware (in WSL2) so that when I do
+   git push alienware main from my dev machine, a post-receive git hook
+   automatically:
+   - Pulls the latest code into /mnt/d/Babylon/app/
+   - Runs pnpm install if package.json changed
+   - Runs pnpm build for packages/api and packages/web
+   - Runs pm2 reload babylon-api and pm2 reload babylon-web
+   This means a single git push from my laptop deploys everything.
+   No SSH required after initial setup.
+
+2. API AUTO-RESTART
+   PM2 must be configured with pm2 startup so it:
+   - Starts automatically when Windows boots (via PM2's Windows startup script)
+   - Automatically restarts babylon-api and babylon-web if they crash
+   - Saves the process list (pm2 save) so it survives reboots
+
+3. INGEST DAEMON AUTO-RESTART (WSL2)
+   The Python ingest daemon runs in WSL2. Configure it to:
+   - Start automatically when WSL2 starts using a WSL2 startup mechanism
+     (add the daemon launch to /etc/wsl.conf [boot] section or a systemd
+     service within WSL2 if systemd is enabled)
+   - Restart automatically on crash (use a simple supervisor loop in the
+     daemon itself, or WSL2 systemd service with Restart=always)
+   - When git push alienware main fires the post-receive hook, the hook
+     must also restart the ingest daemon:
+     sudo systemctl restart babylon-ingest
+     (or equivalent depending on how WSL2 auto-start is implemented)
+
+4. QBITTORRENT AUTO-START
+   qBittorrent (Windows native) must be configured to:
+   - Launch on Windows startup via the Windows startup folder or Task Scheduler
+   - Always start minimized to system tray, never require interaction
+
+5. WINDOWS AUTO-LOGIN + NEVER SLEEP
+   For all of the above to work across reboots the Alienware must:
+   - Auto-login to Windows on boot without requiring a password entry
+     (configure via netplwiz)
+   - Never sleep or hibernate: set power plan to High Performance,
+     disable all sleep/hibernate/screen timeout in Power Options,
+     disable USB selective suspend
+   - Close lid without sleeping: set lid close action to Do Nothing
+     in Power Options (so the laptop can sit closed)
+
+   Include these Windows configuration steps explicitly in the
+   setup guide so I can do them once during initial setup.
+
+6. NETWORK STATIC IP
+   Assign a static LAN IP to the Alienware in the router's DHCP reservation
+   table using the Ethernet MAC address. Include instructions in the setup
+   guide for how to find the MAC address (ipconfig /all) and where to set
+   the reservation (generic instructions since router admin UIs vary).
+   Once set, the Alienware is always reachable at the same IP on the LAN
+   regardless of reboots.
+
+The setup guide at deploy/PHASE2_LOCAL_SETUP.md must include every one of
+these steps in order, written as a one-time setup checklist. After following
+it once, I should never need to touch the Alienware again.
+
+--- WHAT TO DELIVER ---
+
+Do not execute anything yet. Do the following strictly in order:
+
+1. Write the Phase 1 retrospective document as described above
+2. Add PHASE1_DEPRECATED.md at the repo root and the three deprecation 
+   comment blocks in the files listed above
+3. Write the full Phase 2 implementation plan to
+   docs/superpowers/plans/2026-03-28-babylon-phase2-local.md
+   covering exactly the two changes above, task by task with TDD,
+   same format as the Phase 1 plans
+4. Show me the plan for review before writing a single line of Phase 2 code
