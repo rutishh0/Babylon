@@ -225,31 +225,41 @@ class AllAnimeProvider(BaseProvider):
         source_urls = ep_data.get("sourceUrls", [])
         streams = []
 
-        for source in source_urls:
+        # Sort sources: type=player first (direct downloadable URLs), then others
+        player_sources = [s for s in source_urls if s.get("type") == "player"]
+        other_sources = [s for s in source_urls if s.get("type") != "player"]
+
+        for source in player_sources + other_sources:
             try:
                 raw_url = source.get("sourceUrl", "")
                 source_name = source.get("sourceName", "")
                 stype = source.get("type", "")
 
-                # Decrypt the URL
                 decrypted = _decrypt(raw_url)
-                if not decrypted or decrypted == '?':
+                if not decrypted or '?' * 3 in decrypted:
                     continue
 
-                # Direct URL (starts with http) — use as-is
-                if decrypted.startswith("http"):
-                    fmt = "mp4" if ".mp4" in decrypted or "mp4" in source_name.lower() else "m3u8"
+                # type=player sources decode to direct downloadable URLs (e.g. Yt-mp4)
+                # These are the only reliable source for actual video downloads.
+                if stype == "player" and decrypted.startswith("http"):
                     streams.append(Stream(
                         url=decrypted,
-                        quality="unknown",
-                        format=fmt,
+                        quality="1080",
+                        format="mp4",
                         referer=REFERER,
                         provider_name=source_name,
                     ))
                     continue
 
-                # AllAnime internal endpoint (/apivtwo/clock?id=...)
-                if decrypted.startswith("/"):
+                # Skip iframe embeds (mp4upload, ok.ru, streamwish, etc.)
+                # These are HTML pages with JS players, not downloadable files.
+                if stype == "iframe" and decrypted.startswith("http"):
+                    logger.debug("Skipping iframe embed: %s (%s)", source_name, decrypted[:60])
+                    continue
+
+                # AllAnime /apivtwo/clock endpoints — these sometimes return
+                # direct links but often return more encoded data. Try them as fallback.
+                if decrypted.startswith("/apivtwo/"):
                     clock_url = f"{BASE_URL}{decrypted}"
                     try:
                         resp = self.session.get(clock_url, timeout=15, headers={"Referer": REFERER})
@@ -259,7 +269,7 @@ class AllAnimeProvider(BaseProvider):
                         links = clock_data.get("links", [])
                         for link in links:
                             link_url = link.get("link", "")
-                            if not link_url:
+                            if not link_url or not link_url.startswith("http"):
                                 continue
 
                             subtitles = []
@@ -272,7 +282,6 @@ class AllAnimeProvider(BaseProvider):
                             res_str = link.get("resolutionStr", "unknown")
 
                             if ".m3u8" in link_url:
-                                # Try to parse master playlist for quality variants
                                 try:
                                     m3u8_resp = self.session.get(link_url, timeout=10)
                                     if "#EXT-X-STREAM-INF" in m3u8_resp.text:
@@ -295,7 +304,6 @@ class AllAnimeProvider(BaseProvider):
                                         provider_name=source_name,
                                     ))
                             else:
-                                # MP4 or other direct link
                                 streams.append(Stream(
                                     url=link_url, quality=res_str, format="mp4",
                                     referer=REFERER, subtitles=subtitles,
@@ -304,9 +312,6 @@ class AllAnimeProvider(BaseProvider):
                     except Exception as e:
                         logger.debug("Clock endpoint failed for %s: %s", source_name, e)
                         continue
-
-                # Skip iframe embeds (external sites) — too complex to extract
-                # These would need per-site extractors like yt-dlp
 
             except Exception as e:
                 logger.debug("Failed to extract stream from source %s: %s", source_name, e)
