@@ -5,6 +5,7 @@ Connects to the qBittorrent WebUI running on localhost:8080 (bound to 127.0.0.1)
 Credentials come from config.py (QBITTORRENT_USER / QBITTORRENT_PASS).
 """
 
+import re
 import time
 import logging
 from typing import Optional
@@ -14,6 +15,14 @@ import qbittorrentapi
 import config
 
 logger = logging.getLogger(__name__)
+
+
+def _to_windows_path(linux_path: str) -> str:
+    """Convert WSL2 /mnt/<drive>/... path to Windows <drive>:/... for qBittorrent."""
+    m = re.match(r'^/mnt/([a-zA-Z])/(.*)', linux_path)
+    if m:
+        return f"{m.group(1).upper()}:/{m.group(2)}"
+    return linux_path
 
 # Re-exported for caller convenience
 TorrentFile = dict  # keys: name, size, priority, progress, index
@@ -38,7 +47,6 @@ def add_magnet(magnet_link: str, save_path: str) -> str:
     qBittorrent does not return the hash from the add call; we find it by
     matching the magnet's xt= parameter.
     """
-    import re
     client = _client()
 
     # Extract expected hash from magnet URI (xt=urn:btih:<hash>)
@@ -49,7 +57,7 @@ def add_magnet(magnet_link: str, save_path: str) -> str:
 
     client.torrents_add(
         urls=magnet_link,
-        save_path=save_path,
+        save_path=_to_windows_path(save_path),
         is_paused=False,
     )
     logger.info("Added magnet to qBittorrent, hash=%s", expected_hash)
