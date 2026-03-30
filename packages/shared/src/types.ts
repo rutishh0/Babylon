@@ -65,6 +65,8 @@ export const CompleteUploadSchema = z.object({
   format: z.string().optional(),
   originalFilename: z.string().optional(),
   episodeId: z.string().optional(),
+  seasonNumber: z.number().int().optional(),
+  episodeNumber: z.number().int().optional(),
 });
 export type CompleteUploadInput = z.infer<typeof CompleteUploadSchema>;
 

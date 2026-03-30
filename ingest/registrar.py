@@ -9,6 +9,7 @@ ingest_seen / ingest_failed tables (shared DB with the API, WAL mode).
 """
 
 import logging
+import os
 import sqlite3
 import time
 import uuid
@@ -76,31 +77,25 @@ def register_episode(
     Returns the episode ID.
     """
     data = _api("POST", "/api/upload/complete", json={
-        "s3_key": s3_key,
-        "media_id": media_id,
-        "type": "episode",
-        "season": season,
-        "episode_number": episode_num,
+        "s3Key": s3_key,
+        "mediaId": media_id,
+        "seasonNumber": season,
+        "episodeNumber": episode_num,
         "duration": int(duration_seconds) if duration_seconds else None,
-        "file_size": file_size,
-        "original_filename": original_filename,
+        "fileSize": file_size,
+        "originalFilename": original_filename,
         "format": "mp4",
     })
-    episode_id = data["id"]
+    episode_id = data.get("id") or data.get("episodeId")
     logger.info("Registered episode s%de%d → id=%s", season, episode_num, episode_id)
     return episode_id
 
 
 def register_subtitle(episode_id: str, language: str, s3_key: str, fmt: str = "vtt") -> None:
     """Register a subtitle file linked to an episode."""
-    _api("POST", "/api/upload/complete", json={
-        "type": "subtitle",
-        "episode_id": episode_id,
-        "language": language,
-        "s3_key": s3_key,
-        "format": fmt,
-        "label": _language_label(language),
-    })
+    # TODO: Add subtitle creation API endpoint. For now, subtitles are moved
+    # to local storage but not registered in the database.
+    logger.info("Subtitle moved to %s (lang=%s) — DB registration pending API endpoint", s3_key, language)
     logger.info("Registered subtitle (%s) for episode %s", language, episode_id)
 
 
@@ -121,10 +116,42 @@ def apply_metadata(media_id: str) -> None:
 # SQLite ingest_seen / ingest_failed (direct DB access)
 # ---------------------------------------------------------------------------
 
+def _ingest_db_path() -> str:
+    """Use a separate SQLite DB on native Linux fs for ingest tracking.
+    The main Babylon DB lives on /mnt/b/ (9P mount) which doesn't support SQLite locking."""
+    native_dir = os.path.expanduser("~/.babylon")
+    os.makedirs(native_dir, exist_ok=True)
+    return os.path.join(native_dir, "ingest.db")
+
+
+_ingest_db_initialized = False
+
+
 def _db_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(config.get_db_path(), timeout=10)
+    global _ingest_db_initialized
+    conn = sqlite3.connect(_ingest_db_path(), timeout=10)
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA busy_timeout=5000")
+    if not _ingest_db_initialized:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ingest_seen (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                episode TEXT NOT NULL,
+                torrent_hash TEXT,
+                processed_at TEXT NOT NULL
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS ingest_failed (
+                id TEXT PRIMARY KEY,
+                title TEXT NOT NULL,
+                reason TEXT,
+                failed_at TEXT NOT NULL
+            )
+        """)
+        conn.commit()
+        _ingest_db_initialized = True
     return conn
 
 

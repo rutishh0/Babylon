@@ -6,5 +6,8 @@ dist/
 *.db-wal
 .turbo/
 .DS_Store
+__pycache__/
+ingest/venv/
+ingest/status.json
 
 .vercel

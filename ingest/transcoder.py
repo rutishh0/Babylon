@@ -63,6 +63,7 @@ def transcode(input_path: str, output_path: str) -> bool:
         "-c:v", "h264_nvenc",          # NVIDIA hardware encoder
         "-preset", "p4",               # balanced quality/speed
         "-cq", "23",                   # constant-quality rate control
+        "-pix_fmt", "yuv420p",         # convert 10-bit sources to 8-bit for h264_nvenc
         "-c:a", "aac",                 # AAC audio encoding
         "-b:a", "192k",               # audio bitrate
         "-sn",                         # no subtitle streams in output

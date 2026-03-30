@@ -1,8 +1,8 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { eq } from 'drizzle-orm';
+import { eq, and } from 'drizzle-orm';
 import { ulid } from 'ulid';
 import { InitiateUploadSchema, CompleteUploadSchema } from '@babylon/shared';
-import { media, mediaFile, episode } from '../db/schema.js';
+import { media, mediaFile, episode, season } from '../db/schema.js';
 
 const uploadRoutes: FastifyPluginAsync = async (app) => {
   // POST /api/upload/initiate
@@ -64,7 +64,41 @@ const uploadRoutes: FastifyPluginAsync = async (app) => {
     }
     const mediaEntry = rows[0];
 
-    if (input.episodeId) {
+    // Resolve or auto-create episodeId from seasonNumber + episodeNumber
+    let episodeId = input.episodeId;
+    if (!episodeId && input.seasonNumber != null && input.episodeNumber != null) {
+      // Find or create season
+      let seasonRows = app.db.select().from(season)
+        .where(and(eq(season.mediaId, input.mediaId), eq(season.seasonNumber, input.seasonNumber)))
+        .all();
+      if (seasonRows.length === 0) {
+        const seasonId = ulid();
+        app.db.insert(season).values({
+          id: seasonId,
+          mediaId: input.mediaId,
+          seasonNumber: input.seasonNumber,
+        }).run();
+        seasonRows = [{ id: seasonId, mediaId: input.mediaId, seasonNumber: input.seasonNumber, title: null }];
+      }
+      const seasonId = seasonRows[0].id;
+
+      // Find or create episode
+      let episodeRows = app.db.select().from(episode)
+        .where(and(eq(episode.seasonId, seasonId), eq(episode.episodeNumber, input.episodeNumber)))
+        .all();
+      if (episodeRows.length === 0) {
+        episodeId = ulid();
+        app.db.insert(episode).values({
+          id: episodeId,
+          seasonId,
+          episodeNumber: input.episodeNumber,
+        }).run();
+      } else {
+        episodeId = episodeRows[0].id;
+      }
+    }
+
+    if (episodeId) {
       // Update the episode record with s3Key + file info
       app.db
         .update(episode)
@@ -75,10 +109,10 @@ const uploadRoutes: FastifyPluginAsync = async (app) => {
           format: input.format ?? null,
           originalFilename: input.originalFilename ?? null,
         })
-        .where(eq(episode.id, input.episodeId))
+        .where(eq(episode.id, episodeId))
         .run();
 
-      return reply.send({ success: true, episodeId: input.episodeId });
+      return reply.send({ success: true, id: episodeId, episodeId });
     } else if (mediaEntry.type === 'movie') {
       // Create or replace mediaFile record
       const fileId = ulid();
