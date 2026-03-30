@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useToast } from '@/components/Toast';
 
 interface AnimeResult {
@@ -23,13 +23,14 @@ interface EpisodeItem {
   language: string;
 }
 
-interface StreamData {
-  url: string;
-  quality: string | null;
-  format: string;
-  referer: string | null;
-  provider_name: string;
-  subtitles: Array<{ url: string; language: string }>;
+interface DownloadJob {
+  status: string;
+  progress: number;
+  total: number;
+  current: number | null;
+  completed: number[];
+  errors: string[];
+  title: string;
 }
 
 export default function DiscoverPage() {
@@ -40,10 +41,13 @@ export default function DiscoverPage() {
   const [selectedAnime, setSelectedAnime] = useState<AnimeResult | null>(null);
   const [episodes, setEpisodes] = useState<EpisodeItem[]>([]);
   const [loadingEps, setLoadingEps] = useState(false);
-  const [streamingEp, setStreamingEp] = useState<number | null>(null);
-  const [playerUrl, setPlayerUrl] = useState<string | null>(null);
-  const [playerEp, setPlayerEp] = useState<number | null>(null);
+  const [selectedEps, setSelectedEps] = useState<Set<number>>(new Set());
+  const [downloading, setDownloading] = useState(false);
+  const [downloadJob, setDownloadJob] = useState<DownloadJob | null>(null);
+  const [lang, setLang] = useState('sub');
+  const [quality, setQuality] = useState('best');
 
+  // Search
   useEffect(() => {
     if (!query.trim()) {
       setResults([]);
@@ -65,14 +69,15 @@ export default function DiscoverPage() {
     return () => clearTimeout(timer);
   }, [query]);
 
+  // Select anime → load episodes
   const selectAnime = async (anime: AnimeResult) => {
     setSelectedAnime(anime);
     setLoadingEps(true);
     setEpisodes([]);
-    setPlayerUrl(null);
-    setPlayerEp(null);
+    setSelectedEps(new Set());
+    setDownloadJob(null);
     try {
-      const res = await fetch(`/api/anime/episodes?id=${encodeURIComponent(anime.id)}&lang=sub`);
+      const res = await fetch(`/api/anime/episodes?id=${encodeURIComponent(anime.id)}&lang=${lang}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
       setEpisodes(data);
@@ -83,35 +88,80 @@ export default function DiscoverPage() {
     }
   };
 
-  const watchEpisode = async (ep: EpisodeItem) => {
-    setStreamingEp(ep.number);
-    try {
-      const res = await fetch(
-        `/api/anime/stream?anime_id=${encodeURIComponent(ep.anime_id)}&ep=${ep.number}&lang=sub&quality=best`
-      );
-      const data: StreamData = await res.json();
-      if (data.url) {
-        setPlayerUrl(data.url);
-        setPlayerEp(ep.number);
-      } else {
-        toast('No stream found for this episode', 'error');
-      }
-    } catch {
-      toast('Failed to get stream', 'error');
-    } finally {
-      setStreamingEp(null);
+  // Toggle episode selection
+  const toggleEp = (num: number) => {
+    setSelectedEps((prev) => {
+      const next = new Set(prev);
+      if (next.has(num)) next.delete(num);
+      else next.add(num);
+      return next;
+    });
+  };
+
+  // Select/deselect all
+  const toggleAll = () => {
+    if (selectedEps.size === episodes.length) {
+      setSelectedEps(new Set());
+    } else {
+      setSelectedEps(new Set(episodes.map((e) => e.number)));
     }
   };
+
+  // Batch download
+  const startDownload = async () => {
+    if (!selectedAnime || selectedEps.size === 0) return;
+    setDownloading(true);
+    try {
+      const res = await fetch('/api/anime/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          anime_id: selectedAnime.id,
+          episodes: Array.from(selectedEps).sort((a, b) => a - b),
+          lang,
+          quality,
+          title: selectedAnime.title,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      pollDownload(data.job_id);
+    } catch (err) {
+      toast(err instanceof Error ? err.message : 'Download failed', 'error');
+      setDownloading(false);
+    }
+  };
+
+  // Poll download progress
+  const pollDownload = useCallback(async (jobId: string) => {
+    try {
+      const res = await fetch(`/api/anime/download/status?job_id=${jobId}`);
+      const job: DownloadJob = await res.json();
+      setDownloadJob(job);
+      if (job.status !== 'complete') {
+        setTimeout(() => pollDownload(jobId), 2000);
+      } else {
+        setDownloading(false);
+        toast(`Downloaded ${job.completed.length} episodes!`, 'success');
+      }
+    } catch {
+      setDownloading(false);
+    }
+  }, [toast]);
 
   const goBack = () => {
     setSelectedAnime(null);
     setEpisodes([]);
-    setPlayerUrl(null);
-    setPlayerEp(null);
+    setSelectedEps(new Set());
+    setDownloadJob(null);
+    setDownloading(false);
   };
 
-  // ── Episode + Player View ──
+  // ── Episode List + Download View ──
   if (selectedAnime) {
+    const pct = downloadJob && downloadJob.total > 0
+      ? Math.round((downloadJob.progress / downloadJob.total) * 100) : 0;
+
     return (
       <div className="max-w-screen-xl mx-auto px-4 py-8">
         <button onClick={goBack} className="text-[#a0a0a0] hover:text-white mb-4 text-sm flex items-center gap-1">
@@ -122,7 +172,7 @@ export default function DiscoverPage() {
         {/* Anime Header */}
         <div className="flex gap-4 mb-6">
           {selectedAnime.cover_url && (
-            <img src={selectedAnime.cover_url} alt="" className="w-24 h-36 object-cover rounded-lg" />
+            <img src={selectedAnime.cover_url} alt="" className="w-24 h-36 object-cover rounded-lg shrink-0" />
           )}
           <div>
             <h1 className="text-white text-2xl font-bold">{selectedAnime.title}</h1>
@@ -139,27 +189,62 @@ export default function DiscoverPage() {
                 <span key={g} className="text-xs border border-[#2a2a3e] text-[#a0a0a0] px-2 py-0.5 rounded-full">{g}</span>
               ))}
             </div>
-            {selectedAnime.description && (
-              <p className="text-[#a0a0a0] text-sm mt-3 line-clamp-3">{selectedAnime.description}</p>
-            )}
           </div>
         </div>
 
-        {/* Embedded Player */}
-        {playerUrl && (
-          <div className="mb-6">
-            <div className="flex items-center justify-between mb-2">
-              <h2 className="text-white font-semibold">Now Playing: Episode {playerEp}</h2>
-              <button onClick={() => { setPlayerUrl(null); setPlayerEp(null); }} className="text-[#a0a0a0] hover:text-white text-sm">Close Player</button>
+        {/* Controls */}
+        <div className="flex items-center gap-3 mb-4 flex-wrap">
+          <label className="flex items-center gap-2 text-sm text-[#a0a0a0]">
+            <input type="checkbox" checked={selectedEps.size === episodes.length && episodes.length > 0}
+              onChange={toggleAll} className="accent-[#e53935]" />
+            Select All
+          </label>
+          <select value={lang} onChange={(e) => setLang(e.target.value)}
+            className="bg-[#1a1a2e] text-white border border-[#2a2a3e] rounded-lg px-3 py-1.5 text-sm">
+            <option value="sub">SUB</option>
+            <option value="dub">DUB</option>
+          </select>
+          <select value={quality} onChange={(e) => setQuality(e.target.value)}
+            className="bg-[#1a1a2e] text-white border border-[#2a2a3e] rounded-lg px-3 py-1.5 text-sm">
+            <option value="best">Best Quality</option>
+            <option value="1080">1080p</option>
+            <option value="720">720p</option>
+            <option value="480">480p</option>
+          </select>
+          <button
+            onClick={startDownload}
+            disabled={selectedEps.size === 0 || downloading}
+            className="bg-accent hover:bg-red-700 text-white px-5 py-1.5 rounded-full text-sm font-semibold disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
+            {downloading ? (
+              <>
+                <span className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                Downloading...
+              </>
+            ) : (
+              `Download ${selectedEps.size > 0 ? selectedEps.size : ''} Episode${selectedEps.size !== 1 ? 's' : ''}`
+            )}
+          </button>
+        </div>
+
+        {/* Download Progress */}
+        {downloadJob && (
+          <div className="bg-[#1a1a2e] border border-[#2a2a3e] rounded-lg p-4 mb-4">
+            <div className="flex justify-between text-sm mb-2">
+              <span className="text-white">
+                {downloadJob.status === 'complete' ? 'Download complete' : `Downloading episode ${downloadJob.current || '...'}`}
+              </span>
+              <span className="text-[#a0a0a0]">{downloadJob.progress}/{downloadJob.total}</span>
             </div>
-            <video
-              key={playerUrl}
-              src={playerUrl}
-              controls
-              autoPlay
-              className="w-full rounded-lg bg-black"
-              style={{ maxHeight: '70vh' }}
-            />
+            <div className="w-full h-2 bg-[#0a0a0a] rounded-full overflow-hidden">
+              <div className="h-full bg-accent rounded-full transition-all" style={{ width: `${pct}%` }} />
+            </div>
+            {downloadJob.completed.length > 0 && (
+              <p className="text-green-400 text-xs mt-2">Completed: episodes {downloadJob.completed.join(', ')}</p>
+            )}
+            {downloadJob.errors.length > 0 && (
+              <p className="text-red-400 text-xs mt-2">Errors: {downloadJob.errors.join('; ')}</p>
+            )}
           </div>
         )}
 
@@ -176,32 +261,25 @@ export default function DiscoverPage() {
           <p className="text-[#a0a0a0] text-sm py-4">No episodes found</p>
         ) : (
           <div className="grid gap-2">
-            {episodes.map((ep) => (
-              <div key={ep.number} className="flex items-center gap-3 bg-[#1a1a2e] border border-[#2a2a3e] rounded-lg px-4 py-3">
-                <span className="text-white font-medium w-24">Ep {ep.number}</span>
-                <div className="flex-1" />
-                <button
-                  onClick={() => watchEpisode(ep)}
-                  disabled={streamingEp === ep.number}
-                  className={`text-sm px-4 py-1.5 rounded-full transition-colors ${
-                    playerEp === ep.number
-                      ? 'bg-green-700/20 text-green-400 border border-green-700/40'
-                      : 'bg-accent hover:bg-red-700 text-white'
-                  } disabled:opacity-50`}
+            {episodes.map((ep) => {
+              const isSelected = selectedEps.has(ep.number);
+              const isCompleted = downloadJob?.completed.includes(ep.number);
+              return (
+                <div
+                  key={ep.number}
+                  onClick={() => toggleEp(ep.number)}
+                  className={`flex items-center gap-3 rounded-lg px-4 py-3 cursor-pointer transition-colors border ${
+                    isCompleted ? 'bg-green-900/20 border-green-700/40' :
+                    isSelected ? 'bg-accent/10 border-accent/40' :
+                    'bg-[#1a1a2e] border-[#2a2a3e] hover:border-[#3a3a4e]'
+                  }`}
                 >
-                  {streamingEp === ep.number ? (
-                    <span className="flex items-center gap-1">
-                      <span className="w-3 h-3 border border-white border-t-transparent rounded-full animate-spin" />
-                      Loading...
-                    </span>
-                  ) : playerEp === ep.number ? (
-                    'Playing'
-                  ) : (
-                    'Watch'
-                  )}
-                </button>
-              </div>
-            ))}
+                  <input type="checkbox" checked={isSelected} readOnly className="accent-[#e53935] pointer-events-none" />
+                  <span className="text-white font-medium">Episode {ep.number}</span>
+                  {isCompleted && <span className="text-green-400 text-xs ml-auto">Downloaded</span>}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
@@ -221,7 +299,7 @@ export default function DiscoverPage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search anime..."
+          placeholder="Search anime to download..."
           className="w-full bg-[#1a1a2e] text-white placeholder-[#a0a0a0] border border-[#2a2a3e] rounded-full pl-12 pr-4 py-3 text-base focus:outline-none focus:border-accent"
           autoFocus
         />
@@ -274,7 +352,7 @@ export default function DiscoverPage() {
           <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="mb-4 opacity-40">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
-          <p>Search for anime to stream</p>
+          <p>Search for anime to download</p>
         </div>
       )}
     </div>

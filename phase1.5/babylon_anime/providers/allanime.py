@@ -68,22 +68,32 @@ query($showId: String!) {
 }
 """
 
-# XOR key for decrypting provider URLs (from ani-cli)
-DECRYPT_KEY = bytearray([56, 56, 55, 51, 50, 54, 53, 52, 50, 50, 51, 52, 53, 50, 51, 52, 53, 48, 50, 51])
+# Substitution cipher table from ani-cli source (NOT XOR — it's a static hex-to-char map)
+_SUBST_TABLE = {
+    '79': 'A', '7a': 'B', '7b': 'C', '7c': 'D', '7d': 'E', '7e': 'F', '7f': 'G',
+    '70': 'H', '71': 'I', '72': 'J', '73': 'K', '74': 'L', '75': 'M', '76': 'N',
+    '77': 'O', '68': 'P', '69': 'Q', '6a': 'R', '6b': 'S', '6c': 'T', '6d': 'U',
+    '6e': 'V', '6f': 'W', '60': 'X', '61': 'Y', '62': 'Z', '59': 'a', '5a': 'b',
+    '5b': 'c', '5c': 'd', '5d': 'e', '5e': 'f', '5f': 'g', '50': 'h', '51': 'i',
+    '52': 'j', '53': 'k', '54': 'l', '55': 'm', '56': 'n', '57': 'o', '48': 'p',
+    '49': 'q', '4a': 'r', '4b': 's', '4c': 't', '4d': 'u', '4e': 'v', '4f': 'w',
+    '40': 'x', '41': 'y', '42': 'z', '08': '0', '09': '1', '0a': '2', '0b': '3',
+    '0c': '4', '0d': '5', '0e': '6', '0f': '7', '00': '8', '01': '9', '15': '-',
+    '16': '.', '67': '_', '46': '~', '02': ':', '17': '/', '07': '?', '1b': '#',
+    '63': '[', '65': ']', '78': '@', '19': '!', '1c': '$', '1e': '&', '10': '(',
+    '11': ')', '12': '*', '13': '+', '14': ',', '03': ';', '05': '=', '1d': '%',
+}
 
 
 def _decrypt(encrypted: str) -> str:
-    """Decrypt provider URLs using XOR cipher (from ani-cli's hex substitution)."""
+    """Decrypt provider URLs using ani-cli's hex substitution cipher."""
     if not encrypted.startswith("-"):
         return encrypted
-    encrypted = encrypted[1:]
-    # Hex decode
-    raw = bytes.fromhex(encrypted)
-    # XOR with key
-    decrypted = bytearray(len(raw))
-    for i in range(len(raw)):
-        decrypted[i] = raw[i] ^ DECRYPT_KEY[i % len(DECRYPT_KEY)]
-    return decrypted.decode("utf-8", errors="replace")
+    # Strip leading dashes (usually -- prefix)
+    hex_str = encrypted.lstrip("-")
+    # Split into 2-char hex pairs and substitute
+    pairs = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
+    return ''.join(_SUBST_TABLE.get(p, '?') for p in pairs)
 
 
 def _parse_m3u8_qualities(m3u8_text: str, base_url: str) -> list[tuple[str, str]]:
@@ -223,76 +233,83 @@ class AllAnimeProvider(BaseProvider):
 
                 # Decrypt the URL
                 decrypted = _decrypt(raw_url)
-
-                # Skip non-useful sources
-                if not decrypted or "clock" in decrypted.lower():
+                if not decrypted or decrypted == '?':
                     continue
 
-                # Fetch the actual embed page
-                embed_url = f"{BASE_URL}{decrypted}" if decrypted.startswith("/") else decrypted
-                resp = self.session.get(embed_url, timeout=10, headers={"Referer": REFERER})
-                if resp.status_code != 200:
+                # Direct URL (starts with http) — use as-is
+                if decrypted.startswith("http"):
+                    fmt = "mp4" if ".mp4" in decrypted or "mp4" in source_name.lower() else "m3u8"
+                    streams.append(Stream(
+                        url=decrypted,
+                        quality="unknown",
+                        format=fmt,
+                        referer=REFERER,
+                        provider_name=source_name,
+                    ))
                     continue
 
-                # Try to parse as JSON (some providers return JSON directly)
-                try:
-                    embed_data = resp.json()
-                    links = embed_data.get("links", [])
-                    for link in links:
-                        link_url = link.get("link", "")
-                        subtitles = []
-                        for sub in link.get("subtitles", []):
-                            subtitles.append(Subtitle(
-                                url=sub.get("src", ""),
-                                language=sub.get("label", "Unknown"),
-                            ))
+                # AllAnime internal endpoint (/apivtwo/clock?id=...)
+                if decrypted.startswith("/"):
+                    clock_url = f"{BASE_URL}{decrypted}"
+                    try:
+                        resp = self.session.get(clock_url, timeout=15, headers={"Referer": REFERER})
+                        if resp.status_code != 200:
+                            continue
+                        clock_data = resp.json()
+                        links = clock_data.get("links", [])
+                        for link in links:
+                            link_url = link.get("link", "")
+                            if not link_url:
+                                continue
 
-                        # Check if M3U8 (master playlist)
-                        if ".m3u8" in link_url:
-                            try:
-                                m3u8_resp = self.session.get(link_url, timeout=10)
-                                if "#EXT-X-STREAM-INF" in m3u8_resp.text:
-                                    for quality, q_url in _parse_m3u8_qualities(m3u8_resp.text, link_url):
+                            subtitles = []
+                            for sub in link.get("subtitles", []):
+                                subtitles.append(Subtitle(
+                                    url=sub.get("src", ""),
+                                    language=sub.get("label", "Unknown"),
+                                ))
+
+                            res_str = link.get("resolutionStr", "unknown")
+
+                            if ".m3u8" in link_url:
+                                # Try to parse master playlist for quality variants
+                                try:
+                                    m3u8_resp = self.session.get(link_url, timeout=10)
+                                    if "#EXT-X-STREAM-INF" in m3u8_resp.text:
+                                        for quality, q_url in _parse_m3u8_qualities(m3u8_resp.text, link_url):
+                                            streams.append(Stream(
+                                                url=q_url, quality=quality, format="m3u8",
+                                                referer=REFERER, subtitles=subtitles,
+                                                provider_name=source_name,
+                                            ))
+                                    else:
                                         streams.append(Stream(
-                                            url=q_url,
-                                            quality=quality,
-                                            format="m3u8",
-                                            referer=REFERER,
-                                            subtitles=subtitles,
+                                            url=link_url, quality=res_str, format="m3u8",
+                                            referer=REFERER, subtitles=subtitles,
                                             provider_name=source_name,
                                         ))
-                                else:
+                                except Exception:
                                     streams.append(Stream(
-                                        url=link_url,
-                                        quality=link.get("resolutionStr", "unknown"),
-                                        format="m3u8",
-                                        referer=REFERER,
-                                        subtitles=subtitles,
+                                        url=link_url, quality=res_str, format="m3u8",
+                                        referer=REFERER, subtitles=subtitles,
                                         provider_name=source_name,
                                     ))
-                            except Exception:
+                            else:
+                                # MP4 or other direct link
                                 streams.append(Stream(
-                                    url=link_url,
-                                    quality="unknown",
-                                    format="m3u8",
-                                    referer=REFERER,
-                                    subtitles=subtitles,
+                                    url=link_url, quality=res_str, format="mp4",
+                                    referer=REFERER, subtitles=subtitles,
                                     provider_name=source_name,
                                 ))
-                        elif ".mp4" in link_url or "mp4" in link.get("hls", ""):
-                            streams.append(Stream(
-                                url=link_url,
-                                quality=link.get("resolutionStr", "unknown"),
-                                format="mp4",
-                                referer=REFERER,
-                                subtitles=subtitles,
-                                provider_name=source_name,
-                            ))
-                except (json.JSONDecodeError, KeyError):
-                    pass
+                    except Exception as e:
+                        logger.debug("Clock endpoint failed for %s: %s", source_name, e)
+                        continue
+
+                # Skip iframe embeds (external sites) — too complex to extract
+                # These would need per-site extractors like yt-dlp
 
             except Exception as e:
-                logger.debug("Failed to extract stream from source %s: %s", source.get("sourceName"), e)
+                logger.debug("Failed to extract stream from source %s: %s", source_name, e)
                 continue
 
         return streams
