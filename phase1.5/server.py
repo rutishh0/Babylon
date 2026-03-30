@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 
 from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
 
 # Add parent to path for babylon_anime import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -17,6 +18,7 @@ from babylon_anime.models import LanguageType, Episode
 from babylon_anime.download import download_subtitles
 
 app = Flask(__name__, static_folder="web", static_url_path="")
+CORS(app, origins=["http://localhost:3001", "http://192.168.1.140:3001"])
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger(__name__)
 

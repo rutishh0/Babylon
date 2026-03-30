@@ -32,5 +32,17 @@ module.exports = {
       max_restarts: 10,
       restart_delay: 5000,
     },
+    {
+      name: 'babylon-anime',
+      cwd: 'B:/Babylon/app/phase1.5',
+      script: 'venv/Scripts/python.exe',
+      args: 'server.py',
+      env: {
+        FLASK_ENV: 'production',
+      },
+      watch: false,
+      max_restarts: 10,
+      restart_delay: 5000,
+    },
   ],
 };

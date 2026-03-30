@@ -8,7 +8,19 @@ const nextConfig: NextConfig = {
       { protocol: 'https', hostname: '*.scw.cloud' },
       { protocol: 'https', hostname: 'cdn.myanimelist.net' },
       { protocol: 'https', hostname: 'myanimelist.net' },
+      { protocol: 'https', hostname: 'wp.youtube-anime.com' },
+      { protocol: 'https', hostname: 'img.bunnyccdn.co' },
+      { protocol: 'https', hostname: '*.allanime.day' },
+      { protocol: 'https', hostname: 'allanime.day' },
     ],
+  },
+  async rewrites() {
+    return [
+      {
+        source: '/api/anime/:path*',
+        destination: 'http://localhost:5000/api/:path*',
+      },
+    ];
   },
   // typedRoutes: true, // disabled to allow dynamic route strings
 };
