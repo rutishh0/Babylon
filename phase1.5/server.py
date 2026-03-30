@@ -27,7 +27,7 @@ _downloads = {}  # job_id -> {status, progress, total, current, errors}
 _download_lock = threading.Lock()
 _job_counter = [0]
 
-DEFAULT_OUTPUT = os.path.join(os.path.dirname(__file__), "downloads")
+DEFAULT_OUTPUT = os.environ.get("DOWNLOAD_OUTPUT", "B:/Babylon/media")
 
 
 @app.route("/")
