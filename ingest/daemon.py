@@ -385,7 +385,7 @@ def main() -> None:
 
     _write_status({"running": True, "lastPollAt": None, "currentTask": "starting", "queue": []})
 
-    last_poll = 0.0
+    last_poll = -config.INGEST_POLL_INTERVAL  # Force immediate first poll
 
     while not _shutdown:
         now = time.monotonic()
