@@ -172,7 +172,7 @@ export default function DiscoverPage() {
                   />
                 )}
                 <div className="flex flex-wrap gap-1 mt-2">
-                  {selectedAnime.languages.map((l) => (
+                  {(selectedAnime.languages || []).map((l) => (
                     <span
                       key={l}
                       className="text-xs bg-[#F47521]/20 text-[#F47521] px-2 py-0.5 rounded-full uppercase"
@@ -180,7 +180,7 @@ export default function DiscoverPage() {
                       {l}
                     </span>
                   ))}
-                  {selectedAnime.genres.slice(0, 4).map((g) => (
+                  {(selectedAnime.genres || []).slice(0, 4).map((g) => (
                     <span
                       key={g}
                       className="text-xs border border-[#2a2c32] text-[#a0a0a0] px-2 py-0.5 rounded-full"

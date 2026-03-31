@@ -121,17 +121,17 @@ export default function HeroCarousel({ anime }: HeroCarouselProps) {
               <span className="text-white/60 text-sm">&bull;</span>
             </>
           )}
-          {current.languages.length > 0 && (
+          {(current.languages || []).length > 0 && (
             <span className="text-[#a0a0a0] text-sm">
-              {current.languages.map((l) => l === "sub" ? "Sub" : l === "dub" ? "Dub" : l).join(" | ")}
+              {(current.languages || []).map((l) => l === "sub" ? "Sub" : l === "dub" ? "Dub" : l).join(" | ")}
             </span>
           )}
         </div>
 
         {/* Genre Badges */}
-        {current.genres.length > 0 && (
+        {(current.genres || []).length > 0 && (
           <div className="flex items-center gap-2 mb-4 flex-wrap">
-            {current.genres.slice(0, 5).map((genre) => (
+            {(current.genres || []).slice(0, 5).map((genre) => (
               <span
                 key={genre}
                 className="px-2.5 py-1 bg-white/10 text-white text-xs rounded-sm font-medium"

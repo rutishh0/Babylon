@@ -144,7 +144,15 @@ def get_library():
         ORDER BY a.title
     """).fetchall()
 
-    # Deduplicate by title — keep the one with the most metadata (cover_url)
+    # Deduplicate by normalized title — keep the one with the most metadata (cover_url)
+    import re
+    def _normalize(t):
+        """Normalize title for dedup: lowercase, strip punctuation, collapse spaces."""
+        t = (t or "").lower().strip()
+        t = re.sub(r'[^a-z0-9\s]', '', t)  # remove all non-alphanumeric
+        t = re.sub(r'\s+', ' ', t).strip()  # collapse whitespace
+        return t
+
     seen_titles = {}
     for row in rows:
         item = dict(row)
@@ -155,15 +163,15 @@ def get_library():
                     item[field] = json.loads(val)
                 except (json.JSONDecodeError, TypeError):
                     pass
-        title = (item.get("title") or "").strip()
-        existing = seen_titles.get(title)
+        norm_key = _normalize(item.get("title"))
+        existing = seen_titles.get(norm_key)
         if existing is None:
-            seen_titles[title] = item
+            seen_titles[norm_key] = item
         else:
             # Prefer entry with cover_url, or with more downloaded episodes
             if item.get("cover_url") and not existing.get("cover_url"):
                 item["downloaded_count"] = existing["downloaded_count"] + item["downloaded_count"]
-                seen_titles[title] = item
+                seen_titles[norm_key] = item
             else:
                 existing["downloaded_count"] = existing["downloaded_count"] + item["downloaded_count"]
 
