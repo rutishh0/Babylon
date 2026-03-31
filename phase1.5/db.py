@@ -133,7 +133,8 @@ def get_downloaded_episode(anime_id, ep_num, language="sub"):
 
 
 def get_library():
-    """Return all anime that have at least 1 downloaded episode, with episode count."""
+    """Return all anime that have at least 1 downloaded episode, with episode count.
+    Deduplicates by title — prefers entries with cover_url (from AllAnime) over disk-scanned entries."""
     conn = _get_conn()
     rows = conn.execute("""
         SELECT a.*, COUNT(de.id) as downloaded_count
@@ -142,10 +143,11 @@ def get_library():
         GROUP BY a.id
         ORDER BY a.title
     """).fetchall()
-    result = []
+
+    # Deduplicate by title — keep the one with the most metadata (cover_url)
+    seen_titles = {}
     for row in rows:
         item = dict(row)
-        # Parse JSON fields back to lists
         for field in ("genres", "languages"):
             val = item.get(field)
             if val and isinstance(val, str):
@@ -153,8 +155,19 @@ def get_library():
                     item[field] = json.loads(val)
                 except (json.JSONDecodeError, TypeError):
                     pass
-        result.append(item)
-    return result
+        title = (item.get("title") or "").strip()
+        existing = seen_titles.get(title)
+        if existing is None:
+            seen_titles[title] = item
+        else:
+            # Prefer entry with cover_url, or with more downloaded episodes
+            if item.get("cover_url") and not existing.get("cover_url"):
+                item["downloaded_count"] = existing["downloaded_count"] + item["downloaded_count"]
+                seen_titles[title] = item
+            else:
+                existing["downloaded_count"] = existing["downloaded_count"] + item["downloaded_count"]
+
+    return list(seen_titles.values())
 
 
 def get_anime_detail(anime_id):

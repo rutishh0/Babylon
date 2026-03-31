@@ -12,6 +12,7 @@ import {
   LogOut,
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useDownloadStore } from "@/stores/download-store"
 
 const genres = [
   "Action", "Adventure", "Comedy", "Drama", "Fantasy",
@@ -30,8 +31,19 @@ export default function Header() {
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const [downloadsOpen, setDownloadsOpen] = useState(false)
   const categoriesRef = useRef<HTMLDivElement>(null)
   const userMenuRef = useRef<HTMLDivElement>(null)
+  const downloadsRef = useRef<HTMLDivElement>(null)
+  const downloadStore = useDownloadStore()
+
+  // Initialize download store globally on Header mount
+  useEffect(() => {
+    downloadStore.initialize()
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const queueEntries = Object.entries(downloadStore.queue)
+  const activeCount = queueEntries.filter(([, j]) => j.status !== 'complete').length
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -40,6 +52,9 @@ export default function Header() {
       }
       if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
         setUserMenuOpen(false)
+      }
+      if (downloadsRef.current && !downloadsRef.current.contains(event.target as Node)) {
+        setDownloadsOpen(false)
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
@@ -144,14 +159,74 @@ export default function Header() {
             <Search className="w-5 h-5" />
           </Link>
 
-          {/* Downloads Indicator */}
-          <Link
-            href="/downloads"
-            className="relative p-2.5 text-white hover:text-[#F47521] transition-colors"
-            aria-label="Downloads"
-          >
-            <Download className="w-5 h-5" />
-          </Link>
+          {/* Downloads Dropdown */}
+          <div className="relative" ref={downloadsRef}>
+            <button
+              onClick={() => setDownloadsOpen(!downloadsOpen)}
+              className="relative p-2.5 text-white hover:text-[#F47521] transition-colors"
+              aria-label="Downloads"
+            >
+              <Download className="w-5 h-5" />
+              {activeCount > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 bg-[#F47521] text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {activeCount}
+                </span>
+              )}
+            </button>
+
+            {downloadsOpen && (
+              <div className="absolute top-full right-0 mt-1 w-80 bg-[#23252b] shadow-xl overflow-hidden rounded-md max-h-[400px] overflow-y-auto">
+                <div className="px-4 py-3 border-b border-[#3a3c42] flex items-center justify-between">
+                  <span className="text-sm font-medium text-white">Downloads</span>
+                  {activeCount > 0 && (
+                    <span className="bg-[#F47521] text-white text-[10px] font-bold rounded-full px-2 py-0.5">
+                      {activeCount} active
+                    </span>
+                  )}
+                </div>
+                {queueEntries.length === 0 ? (
+                  <div className="px-4 py-8 text-center text-[#a0a0a0] text-sm">
+                    No downloads yet
+                  </div>
+                ) : (
+                  <div className="divide-y divide-[#1a1a2e]">
+                    {queueEntries.map(([jobId, job]) => {
+                      const pct = job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0
+                      return (
+                        <div key={jobId} className="px-4 py-3">
+                          <div className="flex items-center justify-between mb-1">
+                            <p className="text-white text-sm font-medium line-clamp-1">{job.title}</p>
+                            <span className={`text-[10px] shrink-0 ml-2 ${job.status === 'complete' ? 'text-green-400' : 'text-[#F47521]'}`}>
+                              {job.status === 'complete' ? 'DONE' : 'ACTIVE'}
+                            </span>
+                          </div>
+                          <div className="w-full h-1.5 bg-[#141519] rounded-full overflow-hidden mb-1">
+                            <div
+                              className={`h-full rounded-full transition-all ${job.status === 'complete' ? 'bg-green-500' : 'bg-[#F47521]'}`}
+                              style={{ width: `${pct}%` }}
+                            />
+                          </div>
+                          <div className="flex justify-between text-[11px] text-[#a0a0a0]">
+                            <span>{job.current ? `Ep ${job.current}` : ''}</span>
+                            <span>{job.progress}/{job.total}</span>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+                <div className="border-t border-[#3a3c42] px-4 py-2">
+                  <Link
+                    href="/discover"
+                    className="text-[#F47521] text-xs hover:underline"
+                    onClick={() => setDownloadsOpen(false)}
+                  >
+                    Go to Discover →
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* User Menu */}
           <div className="relative" ref={userMenuRef}>
