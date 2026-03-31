@@ -4,7 +4,7 @@ Desktop management dashboard for the Babylon anime platform.
 Built with customtkinter for a modern dark-themed UI.
 """
 
-VERSION = "1.0.0"
+VERSION = "1.1.0"
 
 import os
 import sys
@@ -912,7 +912,7 @@ class SettingsPanel(ctk.CTkScrollableFrame):
                     f'mkdir "B:\\Babylon\\media" && '
                     f'(if exist "B:\\Babylon\\data\\phase15.db" del /f /q "B:\\Babylon\\data\\phase15.db") && '
                     f'cd /d "{BABYLON_ROOT}" && git pull origin master && '
-                    f'pnpm build && pm2 start all && pm2 save'
+                    f'pnpm build && pm2 start "B:\\Babylon\\app\\deploy\\ecosystem.config.cjs" && pm2 save'
                 )
             else:
                 cmd = f'call "{bat_path}"'
@@ -923,7 +923,7 @@ class SettingsPanel(ctk.CTkScrollableFrame):
                     f'pm2 stop all && '
                     f'(if exist "B:\\Babylon\\data\\phase15.db" del /f /q "B:\\Babylon\\data\\phase15.db") && '
                     f'cd /d "{BABYLON_ROOT}" && git pull origin master && '
-                    f'pnpm build && pm2 start all && pm2 save'
+                    f'pnpm build && pm2 start "B:\\Babylon\\app\\deploy\\ecosystem.config.cjs" && pm2 save'
                 )
             else:
                 cmd = f'call "{bat_path}"'
