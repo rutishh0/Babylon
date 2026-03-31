@@ -4,7 +4,7 @@ Desktop management dashboard for the Babylon anime platform.
 Built with customtkinter for a modern dark-themed UI.
 """
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 import os
 import sys
@@ -121,6 +121,8 @@ def dir_size(path: Path) -> int:
     return total
 
 
+CREATE_NO_WINDOW = 0x08000000
+
 def run_cmd(cmd: str, cwd: str | None = None, shell: bool = True, timeout: int = 10) -> str:
     """Run a shell command and return combined stdout+stderr."""
     try:
@@ -128,6 +130,7 @@ def run_cmd(cmd: str, cwd: str | None = None, shell: bool = True, timeout: int =
             cmd, cwd=cwd, shell=shell,
             capture_output=True, text=True, timeout=timeout,
             errors="replace",
+            creationflags=CREATE_NO_WINDOW,
         )
         return (result.stdout + "\n" + result.stderr).strip()
     except subprocess.TimeoutExpired:
