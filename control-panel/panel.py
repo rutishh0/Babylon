@@ -4,6 +4,8 @@ Desktop management dashboard for the Babylon anime platform.
 Built with customtkinter for a modern dark-themed UI.
 """
 
+VERSION = "1.0.0"
+
 import os
 import sys
 import json
@@ -325,7 +327,7 @@ class ServicesPanel(ctk.CTkScrollableFrame):
 
         ctk.CTkButton(btn_frame, text="Restart All", fg_color=CLR_ACCENT,
                        hover_color=CLR_ACCENT_HOVER,
-                       command=lambda: self._run_pm2("pm2 restart all")
+                       command=lambda: self._run_pm2(f'pm2 start "{BABYLON_ROOT / "deploy" / "ecosystem.config.cjs"}" && pm2 save')
                        ).pack(side="left", padx=(0, 10))
 
         ctk.CTkButton(btn_frame, text="Stop All", fg_color="#991b1b", hover_color="#7f1d1d",
@@ -397,7 +399,7 @@ class ServicesPanel(ctk.CTkScrollableFrame):
                 ("Pulling from GitHub...", f'git pull origin master', root),
                 ("Installing dependencies...", "pnpm install --frozen-lockfile", root),
                 ("Building...", "pnpm build", root),
-                ("Restarting services...", "pm2 restart all", None),
+                ("Restarting services...", f'pm2 start "{BABYLON_ROOT / "deploy" / "ecosystem.config.cjs"}" && pm2 save', None),
             ]
             for label, cmd, cwd in steps:
                 self.output_box.after(0, lambda l=label: self._append_output(f"\n[*] {l}"))
@@ -955,7 +957,7 @@ class BabylonControlPanel(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("Babylon Control Panel")
+        self.title(f"Babylon Control Panel v{VERSION}")
         self.geometry("1200x800")
         self.minsize(900, 600)
         self.configure(fg_color=CLR_BG)
@@ -996,7 +998,7 @@ class BabylonControlPanel(ctk.CTk):
         ctk.CTkLabel(logo_frame, text="BABYLON",
                       font=ctk.CTkFont(size=22, weight="bold"),
                       text_color=CLR_ACCENT).pack(anchor="w")
-        ctk.CTkLabel(logo_frame, text="Control Panel",
+        ctk.CTkLabel(logo_frame, text=f"Control Panel v{VERSION}",
                       font=ctk.CTkFont(size=12),
                       text_color=CLR_TEXT_DIM).pack(anchor="w")
 
