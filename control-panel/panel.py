@@ -69,7 +69,7 @@ CLR_TEXT_DIM = "#94a3b8"
 # ---------------------------------------------------------------------------
 
 
-def check_port(port: int, host: str = "localhost", timeout: float = 1.0) -> bool:
+def check_port(port: int, host: str = "localhost", timeout: float = 0.5) -> bool:
     """Return True if *port* is accepting connections."""
     try:
         with socket.create_connection((host, port), timeout=timeout):
@@ -78,7 +78,7 @@ def check_port(port: int, host: str = "localhost", timeout: float = 1.0) -> bool
         return False
 
 
-def check_health(url: str, timeout: float = 2.0) -> bool:
+def check_health(url: str, timeout: float = 1.0) -> bool:
     """Return True if a GET to *url* responds with 2xx."""
     try:
         r = requests.get(url, timeout=timeout)
@@ -1042,20 +1042,20 @@ class BabylonControlPanel(ctk.CTk):
         # Raise panel FIRST (instant UI switch)
         self.panels[name].tkraise()
         self._current_panel = name
-        self.update_idletasks()  # Force UI redraw
+        self.update_idletasks()  # Force UI redraw immediately
 
         # Start logs polling if entering
         if name == "Logs":
             self.panels["Logs"].start_polling()
 
-        # Refresh panel data in background (don't block UI)
-        threading.Thread(target=self._refresh_current, daemon=True).start()
+        # Schedule refresh on main thread after a tiny delay (lets UI paint first)
+        self.after(50, self._refresh_current)
 
     # --- Auto Refresh ---
 
     def _auto_refresh(self):
-        """Refresh current panel data in a background thread."""
-        threading.Thread(target=self._refresh_current, daemon=True).start()
+        """Refresh current panel on the main thread (safe for tkinter)."""
+        self._refresh_current()
         self.after(REFRESH_INTERVAL_MS, self._auto_refresh)
 
     def _refresh_current(self):
