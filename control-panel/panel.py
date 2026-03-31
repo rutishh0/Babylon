@@ -124,7 +124,7 @@ def run_cmd(cmd: str, cwd: str | None = None, shell: bool = True) -> str:
     try:
         result = subprocess.run(
             cmd, cwd=cwd, shell=shell,
-            capture_output=True, text=True, timeout=120,
+            capture_output=True, text=True, timeout=10,
         )
         return (result.stdout + "\n" + result.stderr).strip()
     except subprocess.TimeoutExpired:
@@ -1039,16 +1039,17 @@ class BabylonControlPanel(ctk.CTk):
             else:
                 btn.configure(fg_color="transparent", text_color=CLR_TEXT_DIM)
 
-        # Raise panel
+        # Raise panel FIRST (instant UI switch)
         self.panels[name].tkraise()
         self._current_panel = name
+        self.update_idletasks()  # Force UI redraw
 
         # Start logs polling if entering
         if name == "Logs":
             self.panels["Logs"].start_polling()
 
-        # Trigger initial refresh
-        self._refresh_current()
+        # Refresh panel data in background (don't block UI)
+        threading.Thread(target=self._refresh_current, daemon=True).start()
 
     # --- Auto Refresh ---
 
