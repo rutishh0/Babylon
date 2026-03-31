@@ -302,9 +302,15 @@ export default function AnimeDetailPage() {
             {/* Synopsis */}
             {animeDetail?.description && (
               <div className="mb-8">
-                <p className="text-[#a0a0a0] leading-relaxed text-sm">
-                  {animeDetail.description}
-                </p>
+                <p
+                  className="text-[#a0a0a0] leading-relaxed text-sm"
+                  dangerouslySetInnerHTML={{
+                    __html: animeDetail.description
+                      .replace(/&#x([0-9a-fA-F]+);/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+                      .replace(/<br\s*\/?>/g, ' ')
+                      .replace(/<[^>]*>/g, '')
+                  }}
+                />
               </div>
             )}
 
