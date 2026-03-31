@@ -1,14 +1,8 @@
-// ============================================================================
-// PHASE 1 — DEPRECATED. See PHASE1_DEPRECATED.md
-// This frontend was deployed on Vercel and pointed at a remote VPS API.
-// Phase 2 runs locally on an Alienware machine on the home LAN.
-// ============================================================================
-
 import type { Metadata } from 'next';
 import { Inter } from 'next/font/google';
 import './globals.css';
-import Navbar from '@/components/Navbar';
-import { ToastProvider } from '@/components/Toast';
+import Header from '@/components/Header';
+import Footer from '@/components/Footer';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -27,12 +21,11 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={inter.variable}>
-      <body className="bg-bg min-h-screen font-sans">
-        <ToastProvider>
-          <Navbar />
-          <main>{children}</main>
-        </ToastProvider>
+    <html lang="en" className={`${inter.variable} dark`}>
+      <body className="bg-[#000000] text-white min-h-screen font-sans">
+        <Header />
+        <main>{children}</main>
+        <Footer />
       </body>
     </html>
   );

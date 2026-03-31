@@ -1,44 +1,74 @@
-import { getHomeScreen } from '@/lib/api';
-import HeroBanner from '@/components/HeroBanner';
-import MediaRow from '@/components/MediaRow';
+'use client';
 
-export const dynamic = 'force-dynamic';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { getLibrary } from '@/lib/anime-api';
+import type { LibraryAnime } from '@/lib/anime-api';
+import HeroCarousel from '@/components/HeroCarousel';
+import AnimeCarousel from '@/components/AnimeCarousel';
 
-export default async function HomePage() {
-  let data;
-  try {
-    data = await getHomeScreen();
-  } catch {
+export default function HomePage() {
+  const [library, setLibrary] = useState<LibraryAnime[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    getLibrary()
+      .then(setLibrary)
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-[60vh] text-[#a0a0a0]">
-        <p>Unable to load content. Make sure the API is running.</p>
+      <div className="min-h-[80vh] flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F47521] border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  const heroMedia =
-    data.continueWatching[0] ?? data.recentlyAdded[0] ?? null;
+  if (library.length === 0) {
+    return (
+      <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4">
+        <h1 className="text-white text-3xl font-bold mb-4">Welcome to Babylon</h1>
+        <p className="text-[#a0a0a0] mb-8 max-w-md">
+          Your personal anime streaming platform. Start by discovering and downloading anime.
+        </p>
+        <Link
+          href="/discover"
+          className="bg-[#F47521] hover:bg-[#e06520] text-white px-8 py-3 rounded-sm font-semibold text-lg transition-colors"
+        >
+          Discover Anime
+        </Link>
+      </div>
+    );
+  }
+
+  const heroAnime = library.slice(0, 5);
+  const recentlyDownloaded = library.slice(0, 12);
+
+  // Group by genre
+  const genreMap = new Map<string, LibraryAnime[]>();
+  for (const anime of library) {
+    const genres: string[] =
+      typeof anime.genres === 'string'
+        ? JSON.parse(anime.genres as unknown as string)
+        : anime.genres || [];
+    for (const genre of genres.slice(0, 2)) {
+      if (!genreMap.has(genre)) genreMap.set(genre, []);
+      genreMap.get(genre)!.push(anime);
+    }
+  }
 
   return (
-    <div className="pb-12">
-      {heroMedia && <HeroBanner media={heroMedia} />}
-
-      <div className="mt-6">
-        {data.continueWatching.length > 0 && (
-          <MediaRow
-            title="Continue Watching"
-            items={data.continueWatching}
-            showProgress
-          />
-        )}
-
-        {data.recentlyAdded.length > 0 && (
-          <MediaRow title="Recently Added" items={data.recentlyAdded} />
-        )}
-
-        {data.genreRows.map(({ genre, media }) => (
-          <MediaRow key={genre} title={genre} items={media} />
-        ))}
+    <div className="min-h-screen">
+      <HeroCarousel anime={heroAnime} />
+      <div className="px-4 md:px-8 lg:px-12 pb-16 space-y-8 -mt-4">
+        <AnimeCarousel title="Your Library" anime={recentlyDownloaded} />
+        {Array.from(genreMap.entries())
+          .slice(0, 4)
+          .map(([genre, items]) => (
+            <AnimeCarousel key={genre} title={genre} anime={items.slice(0, 12)} />
+          ))}
       </div>
     </div>
   );
