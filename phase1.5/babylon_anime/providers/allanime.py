@@ -204,6 +204,28 @@ class AllAnimeProvider(BaseProvider):
                     genres=edge.get("genres", []),
                     status=edge.get("status"),
                 ))
+
+        # Sort by relevance — exact/substring matches first, then partial
+        q_lower = query.lower()
+        def _relevance(r: SearchResult) -> tuple:
+            t = r.title.lower()
+            nt = (r.native_title or "").lower()
+            # Exact match
+            if t == q_lower or nt == q_lower:
+                return (0, 0)
+            # Starts with query
+            if t.startswith(q_lower) or nt.startswith(q_lower):
+                return (1, len(t))
+            # Contains query as substring
+            if q_lower in t or q_lower in nt:
+                return (2, len(t))
+            # Query words all present
+            words = q_lower.split()
+            if all(w in t or w in nt for w in words):
+                return (3, len(t))
+            return (4, len(t))
+
+        results.sort(key=_relevance)
         return results
 
     def get_episodes(self, anime_id: str, lang: LanguageType = LanguageType.SUB) -> list[Episode]:
