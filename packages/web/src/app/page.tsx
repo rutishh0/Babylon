@@ -13,8 +13,8 @@ export default function HomePage() {
 
   useEffect(() => {
     getLibrary()
-      .then(setLibrary)
-      .catch(() => {})
+      .then((data) => setLibrary(Array.isArray(data) ? data : []))
+      .catch(() => setLibrary([]))
       .finally(() => setLoading(false));
   }, []);
 
