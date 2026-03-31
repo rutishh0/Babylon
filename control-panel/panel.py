@@ -389,8 +389,8 @@ class ServicesPanel(ctk.CTkScrollableFrame):
             BABYLON_ROOT)
         self._run_pm2(cmd)
 
-    def refresh(self):
-        # Try PM2 jlist for detailed info
+    def gather_data(self):
+        """Collect service data in background (no UI calls)."""
         try:
             raw = run_cmd("pm2 jlist")
             pm2_data = json.loads(raw)
@@ -401,13 +401,11 @@ class ServicesPanel(ctk.CTkScrollableFrame):
         for proc in pm2_data:
             pm2_lookup[proc.get("name", "")] = proc
 
-        for name, widgets in self.service_frames.items():
+        results = {}
+        for name in SERVICE_MAP:
             port = SERVICE_MAP[name]["port"]
             online = check_port(port)
-            widgets["dot"].set_color(CLR_GREEN if online else CLR_RED)
-
             detail_parts = [f"Port {port}: {'open' if online else 'closed'}"]
-
             pm2_info = pm2_lookup.get(name)
             if pm2_info:
                 env = pm2_info.get("pm2_env", {})
@@ -425,8 +423,21 @@ class ServicesPanel(ctk.CTkScrollableFrame):
                 if cpu:
                     detail_parts.append(f"CPU {cpu}%")
                 detail_parts.insert(0, f"PM2: {status}")
+            results[name] = {"online": online, "detail": "  |  ".join(detail_parts)}
+        return results
 
-            widgets["detail"].configure(text="  |  ".join(detail_parts))
+    def apply_data(self, data):
+        """Update UI with gathered data (main thread only)."""
+        if not data:
+            return
+        for name, widgets in self.service_frames.items():
+            info = data.get(name, {})
+            widgets["dot"].set_color(CLR_GREEN if info.get("online") else CLR_RED)
+            widgets["detail"].configure(text=info.get("detail", "Unknown"))
+
+    def refresh(self):
+        data = self.gather_data()
+        self.apply_data(data)
 
 
 class DownloadsPanel(ctk.CTkScrollableFrame):
@@ -1022,7 +1033,7 @@ class BabylonControlPanel(ctk.CTk):
         }
         for name, cls in panel_classes.items():
             panel = cls(self.content_frame, app=self)
-            panel.grid(row=0, column=0, sticky="nsew")
+            # Don't grid yet — only the active panel will be shown
             self.panels[name] = panel
 
         self._current_panel = None
@@ -1039,24 +1050,44 @@ class BabylonControlPanel(ctk.CTk):
             else:
                 btn.configure(fg_color="transparent", text_color=CLR_TEXT_DIM)
 
-        # Raise panel FIRST (instant UI switch)
-        self.panels[name].tkraise()
+        # Hide ALL panels, then show only the selected one
+        for panel_name, panel in self.panels.items():
+            panel.grid_remove()
+        self.panels[name].grid(row=0, column=0, sticky="nsew")
         self._current_panel = name
-        self.update_idletasks()  # Force UI redraw immediately
 
         # Start logs polling if entering
         if name == "Logs":
             self.panels["Logs"].start_polling()
 
-        # Schedule refresh on main thread after a tiny delay (lets UI paint first)
-        self.after(50, self._refresh_current)
+        # Refresh data after a short delay (lets panel render first)
+        self.after(100, self._refresh_current_async)
 
     # --- Auto Refresh ---
 
     def _auto_refresh(self):
-        """Refresh current panel on the main thread (safe for tkinter)."""
-        self._refresh_current()
+        """Schedule async refresh every 5 seconds."""
+        self._refresh_current_async()
         self.after(REFRESH_INTERVAL_MS, self._auto_refresh)
+
+    def _refresh_current_async(self):
+        """Gather data in background thread, update UI on main thread."""
+        name = self._current_panel
+        if not name:
+            return
+        panel = self.panels.get(name)
+        if not panel or not hasattr(panel, "refresh"):
+            return
+
+        def _bg():
+            try:
+                data = panel.gather_data() if hasattr(panel, "gather_data") else None
+                # Schedule UI update on main thread
+                self.after(0, lambda: panel.apply_data(data) if hasattr(panel, "apply_data") else panel.refresh())
+            except Exception:
+                pass
+
+        threading.Thread(target=_bg, daemon=True).start()
 
     def _refresh_current(self):
         name = self._current_panel
