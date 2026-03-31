@@ -23,7 +23,7 @@ import requests
 # Configuration
 # ---------------------------------------------------------------------------
 
-BABYLON_ROOT = Path(r"C:\Users\Rutishkrishna\Desktop\Sefl Projects\Babylon")
+BABYLON_ROOT = Path(r"B:\Babylon\app")
 MEDIA_PATH = Path(r"B:\Babylon\media")
 DATA_PATH = Path(r"B:\Babylon\data")
 DOWNLOADS_RAW = Path(r"B:\Babylon\downloads\raw")
