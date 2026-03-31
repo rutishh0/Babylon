@@ -63,6 +63,27 @@ export default function WatchPage() {
   // Stream URL — serve from Flask library endpoint
   const streamUrl = buildLocalStreamUrl(animeId, currentEp);
 
+  // Save to watch history
+  useEffect(() => {
+    if (!anime || !isDownloaded) return;
+    try {
+      const key = 'babylon-watch-history';
+      const history = JSON.parse(localStorage.getItem(key) || '[]');
+      // Remove existing entry for this episode
+      const filtered = history.filter((h: any) => !(h.animeId === animeId && h.episodeNumber === currentEp));
+      filtered.unshift({
+        animeId,
+        animeTitle: anime.title,
+        episodeNumber: currentEp,
+        coverUrl: anime.cover_url,
+        watchedAt: new Date().toISOString(),
+        progress: 0,
+      });
+      // Keep last 100 entries
+      localStorage.setItem(key, JSON.stringify(filtered.slice(0, 100)));
+    } catch { /* silent */ }
+  }, [animeId, currentEp, anime, isDownloaded]);
+
   return (
     <div className="min-h-screen bg-black">
       {/* Top bar */}
