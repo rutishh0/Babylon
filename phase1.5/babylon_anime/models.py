@@ -25,6 +25,7 @@ class SearchResult:
     id: str
     title: str
     provider: str
+    native_title: Optional[str] = None  # Japanese romanized name (if title is English)
     languages: list[LanguageType] = field(default_factory=list)
     year: Optional[int] = None
     episode_count: Optional[int] = None

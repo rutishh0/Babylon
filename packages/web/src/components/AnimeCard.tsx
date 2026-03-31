@@ -5,6 +5,7 @@ import Link from 'next/link';
 interface AnimeCardAnime {
   id: string;
   title: string;
+  native_title?: string | null;
   cover_url?: string | null;
   languages?: string[];
   year?: number | null;
@@ -68,9 +69,12 @@ export function AnimeCard({ anime, variant = 'carousel', onClick }: AnimeCardPro
       </div>
 
       {/* Title */}
-      <h3 className="text-white font-semibold text-sm md:text-base leading-tight line-clamp-2 mb-1 group-hover:text-[#F47521] transition-colors">
+      <h3 className="text-white font-semibold text-sm md:text-base leading-tight line-clamp-2 mb-0.5 group-hover:text-[#F47521] transition-colors">
         {anime.title}
       </h3>
+      {anime.native_title && (
+        <p className="text-[#666] text-xs line-clamp-1 mb-0.5">{anime.native_title}</p>
+      )}
 
       {/* Sub/Dub text */}
       <p className="text-[#a0a0a0] text-xs md:text-sm">{getSubDubText()}</p>

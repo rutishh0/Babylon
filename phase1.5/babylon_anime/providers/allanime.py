@@ -15,12 +15,16 @@ API_URL = "https://api.allanime.day/api"
 BASE_URL = "https://allanime.day"
 REFERER = "https://allmanga.to"
 
+ALLANIME_COVER_BASE = "https://wp.youtube-anime.com/aln.youtube-anime.com/"
+
 SEARCH_GQL = """
 query($search: SearchInput, $limit: Int, $page: Int, $translationType: VaildTranslationTypeEnumType, $countryOrigin: VaildCountryOriginEnumType) {
     shows(search: $search, limit: $limit, page: $page, translationType: $translationType, countryOrigin: $countryOrigin) {
         edges {
             _id
             name
+            englishName
+            altNames
             availableEpisodesDetail
             thumbnail
             description
@@ -55,6 +59,7 @@ query($showId: String!) {
     show(_id: $showId) {
         _id
         name
+        englishName
         description
         genres
         status
@@ -94,6 +99,16 @@ def _decrypt(encrypted: str) -> str:
     # Split into 2-char hex pairs and substitute
     pairs = [hex_str[i:i+2] for i in range(0, len(hex_str), 2)]
     return ''.join(_SUBST_TABLE.get(p, '?') for p in pairs)
+
+
+def _fix_cover_url(url: str | None) -> str | None:
+    """Fix relative AllAnime cover URLs by prepending the CDN base."""
+    if not url:
+        return None
+    if url.startswith("http"):
+        return url
+    # Relative path like "mcovers/a_tbs/dhw/xxx.webp"
+    return ALLANIME_COVER_BASE + url
 
 
 def _parse_m3u8_qualities(m3u8_text: str, base_url: str) -> list[tuple[str, str]]:
@@ -171,14 +186,20 @@ class AllAnimeProvider(BaseProvider):
                 if sub_eps:
                     ep_count = len(sub_eps) if isinstance(sub_eps, list) else None
 
+                # Prefer English name, fall back to Japanese romanized
+                jp_name = edge.get("name", "Unknown")
+                en_name = edge.get("englishName") or ""
+                display_title = en_name if en_name else jp_name
+
                 results.append(SearchResult(
                     id=aid,
-                    title=edge.get("name", "Unknown"),
+                    title=display_title,
+                    native_title=jp_name if jp_name != display_title else None,
                     provider=self.NAME,
                     languages=languages,
                     year=year,
                     episode_count=ep_count,
-                    cover_url=edge.get("thumbnail"),
+                    cover_url=_fix_cover_url(edge.get("thumbnail")),
                     description=edge.get("description"),
                     genres=edge.get("genres", []),
                     status=edge.get("status"),
@@ -324,14 +345,17 @@ class AllAnimeProvider(BaseProvider):
         show = data.get("show")
         if not show:
             return None
+        jp_name = show.get("name", "")
+        en_name = show.get("englishName") or ""
         return {
             "id": show.get("_id"),
-            "title": show.get("name"),
+            "title": en_name if en_name else jp_name,
+            "native_title": jp_name if jp_name != (en_name or jp_name) else None,
             "description": show.get("description"),
             "genres": show.get("genres", []),
             "status": show.get("status"),
             "score": show.get("score"),
-            "cover_url": show.get("thumbnail"),
+            "cover_url": _fix_cover_url(show.get("thumbnail")),
             "alt_titles": show.get("altNames", []),
             "year": (show.get("airedStart") or {}).get("year"),
         }

@@ -3,6 +3,7 @@
 export interface AnimeSearchResult {
   id: string;
   title: string;
+  native_title: string | null;
   provider: string;
   languages: string[];
   year: number | null;

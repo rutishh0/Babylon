@@ -49,6 +49,7 @@ def api_search():
         return jsonify([{
             "id": r.id,
             "title": r.title,
+            "native_title": r.native_title,
             "provider": r.provider,
             "languages": [l.value for l in r.languages],
             "year": r.year,
