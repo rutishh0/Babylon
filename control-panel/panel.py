@@ -119,12 +119,13 @@ def dir_size(path: Path) -> int:
     return total
 
 
-def run_cmd(cmd: str, cwd: str | None = None, shell: bool = True) -> str:
+def run_cmd(cmd: str, cwd: str | None = None, shell: bool = True, timeout: int = 10) -> str:
     """Run a shell command and return combined stdout+stderr."""
     try:
         result = subprocess.run(
             cmd, cwd=cwd, shell=shell,
-            capture_output=True, text=True, timeout=10,
+            capture_output=True, text=True, timeout=timeout,
+            errors="replace",
         )
         return (result.stdout + "\n" + result.stderr).strip()
     except subprocess.TimeoutExpired:
@@ -133,10 +134,10 @@ def run_cmd(cmd: str, cwd: str | None = None, shell: bool = True) -> str:
         return f"[error] {exc}"
 
 
-def run_cmd_async(cmd: str, callback=None, cwd: str | None = None):
+def run_cmd_async(cmd: str, callback=None, cwd: str | None = None, timeout: int = 300):
     """Run a command in a background thread; call *callback(output)* when done."""
     def _worker():
-        output = run_cmd(cmd, cwd=cwd)
+        output = run_cmd(cmd, cwd=cwd, timeout=timeout)
         if callback:
             callback(output)
     threading.Thread(target=_worker, daemon=True).start()
@@ -373,21 +374,38 @@ class ServicesPanel(ctk.CTkScrollableFrame):
 
     def _run_pm2(self, cmd: str):
         self.output_box.insert("end", f"\n> {cmd}\n")
+        self.output_box.insert("end", "[running...]\n")
         self.output_box.see("end")
 
         def _cb(output):
-            self.output_box.after(0, lambda: self._append_output(output))
+            self.output_box.after(0, lambda: self._append_output(output + "\n[done]"))
 
-        run_cmd_async(cmd, callback=_cb)
+        run_cmd_async(cmd, callback=_cb, timeout=30)
 
     def _append_output(self, text: str):
         self.output_box.insert("end", text + "\n")
         self.output_box.see("end")
 
     def _pull_rebuild(self):
-        cmd = 'cd /d "{}" && git pull origin master && pnpm install && pnpm build && pm2 restart all'.format(
-            BABYLON_ROOT)
-        self._run_pm2(cmd)
+        """Run pull + build as separate steps with live output."""
+        self.output_box.insert("end", "\n--- Pull & Rebuild ---\n")
+        self.output_box.see("end")
+
+        def _worker():
+            root = str(BABYLON_ROOT)
+            steps = [
+                ("Pulling from GitHub...", f'git pull origin master', root),
+                ("Installing dependencies...", "pnpm install --frozen-lockfile", root),
+                ("Building...", "pnpm build", root),
+                ("Restarting services...", "pm2 restart all", None),
+            ]
+            for label, cmd, cwd in steps:
+                self.output_box.after(0, lambda l=label: self._append_output(f"\n[*] {l}"))
+                output = run_cmd(cmd, cwd=cwd, timeout=120)
+                self.output_box.after(0, lambda o=output: self._append_output(o))
+            self.output_box.after(0, lambda: self._append_output("\n--- Done! ---\n"))
+
+        threading.Thread(target=_worker, daemon=True).start()
 
     def gather_data(self):
         """Collect service data in background (no UI calls)."""
