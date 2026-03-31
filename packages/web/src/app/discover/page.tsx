@@ -162,7 +162,14 @@ export default function DiscoverPage() {
                   {selectedAnime.status && <span className="capitalize">{selectedAnime.status}</span>}
                 </div>
                 {selectedAnime.description && (
-                  <p className="text-[#a0a0a0] text-xs mt-2 line-clamp-3">{selectedAnime.description}</p>
+                  <p className="text-[#a0a0a0] text-xs mt-2 line-clamp-3"
+                     dangerouslySetInnerHTML={{
+                       __html: selectedAnime.description
+                         .replace(/&#x([0-9a-fA-F]+);/g, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)))
+                         .replace(/<br\s*\/?>/g, ' ')
+                         .replace(/<[^>]*>/g, '')
+                     }}
+                  />
                 )}
                 <div className="flex flex-wrap gap-1 mt-2">
                   {selectedAnime.languages.map((l) => (
