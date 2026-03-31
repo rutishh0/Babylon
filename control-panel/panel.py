@@ -4,7 +4,7 @@ Desktop management dashboard for the Babylon anime platform.
 Built with customtkinter for a modern dark-themed UI.
 """
 
-VERSION = "1.2.0"
+VERSION = "1.3.0"
 
 import os
 import sys
