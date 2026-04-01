@@ -87,6 +87,7 @@ function VariantModal({
   onClose,
   onDownload,
   downloadingVariant,
+  error,
 }: {
   movie: MovieListing;
   variants: MovieVariant[];
@@ -94,6 +95,7 @@ function VariantModal({
   onClose: () => void;
   onDownload: (v: MovieVariant) => void;
   downloadingVariant: string | null;
+  error: string | null;
 }) {
   return (
     <div
@@ -127,7 +129,13 @@ function VariantModal({
               No download variants found.
             </p>
           ) : (
-            variants.map((v, i) => (
+            <>
+            {error && (
+              <div className="bg-red-900/30 border border-red-500/30 rounded-md p-3 mb-2">
+                <p className="text-red-400 text-sm">{error}</p>
+              </div>
+            )}
+            {variants.map((v, i) => (
               <div
                 key={i}
                 className="bg-[#23252b] rounded-md p-3 flex items-center justify-between gap-3"
@@ -167,7 +175,8 @@ function VariantModal({
                   {downloadingVariant === v.magnet_url ? 'Starting...' : 'Download'}
                 </button>
               </div>
-            ))
+            ))}
+            </>
           )}
         </div>
       </div>
@@ -189,6 +198,7 @@ export default function MoviesPage() {
   const [variants, setVariants] = useState<MovieVariant[]>([]);
   const [loadingVariants, setLoadingVariants] = useState(false);
   const [downloadingVariant, setDownloadingVariant] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
 
   // Download status
   const [downloadJobs, setDownloadJobs] = useState<Record<string, MovieDownloadJob>>({});
@@ -273,8 +283,9 @@ export default function MoviesPage() {
   const handleDownload = async (variant: MovieVariant) => {
     if (!selectedMovie) return;
     setDownloadingVariant(variant.magnet_url);
+    setDownloadError(null);
     try {
-      await startMovieDownload({
+      const result = await startMovieDownload({
         magnet_url: variant.magnet_url,
         title: selectedMovie.parsed_title || selectedMovie.title,
         year: selectedMovie.year,
@@ -284,8 +295,15 @@ export default function MoviesPage() {
         quality_tag: variant.quality_tag || undefined,
         topic_url: selectedMovie.topic_url,
       });
-    } catch {
-      // TODO: show error toast
+      setDownloadError(null);
+      // Close modal on success after brief delay
+      setTimeout(() => setSelectedMovie(null), 1000);
+    } catch (e: unknown) {
+      const msg = e instanceof Error ? e.message : 'Download failed';
+      setDownloadError(msg.includes('qBittorrent')
+        ? 'qBittorrent is not running. Start it at localhost:8080 and try again.'
+        : msg
+      );
     } finally {
       setDownloadingVariant(null);
     }
@@ -411,14 +429,14 @@ export default function MoviesPage() {
                   <div className="w-full h-1.5 bg-[#23252b] rounded-full overflow-hidden">
                     <div
                       className="h-full bg-[#F47521] rounded-full transition-all"
-                      style={{ width: `${Math.min(100, job.progress)}%` }}
+                      style={{ width: `${Math.min(100, (job.progress <= 1 ? job.progress * 100 : job.progress))}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-[11px] text-[#6b6b6b] mt-1">
                     <span>
                       {job.resolution || ''} {job.language || ''}
                     </span>
-                    <span>{Math.round(job.progress)}%</span>
+                    <span>{Math.round(job.progress <= 1 ? job.progress * 100 : job.progress)}%</span>
                   </div>
                 </div>
               ))}
@@ -433,6 +451,7 @@ export default function MoviesPage() {
           movie={selectedMovie}
           variants={variants}
           loadingVariants={loadingVariants}
+          error={downloadError}
           onClose={() => setSelectedMovie(null)}
           onDownload={handleDownload}
           downloadingVariant={downloadingVariant}
