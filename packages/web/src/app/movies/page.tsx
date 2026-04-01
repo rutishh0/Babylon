@@ -15,7 +15,7 @@ import {
 
 const FORUM_TABS = [
   { key: 'webhd', label: 'Web-HD' },
-  { key: 'hdrips', label: 'HD Rips' },
+  { key: 'hdrip', label: 'HD Rips' },
   { key: 'predvd', label: 'PreDVD' },
 ] as const;
 
@@ -96,8 +96,16 @@ function VariantModal({
   downloadingVariant: string | null;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-[#1a1c22] rounded-lg w-full max-w-lg mx-4 max-h-[80vh] flex flex-col">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+      onClick={onClose}
+      onMouseDown={(e) => e.stopPropagation()}
+    >
+      <div
+        className="bg-[#1a1c22] rounded-lg w-full max-w-lg mx-4 max-h-[80vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
         <div className="p-4 border-b border-[#2a2c32] flex items-center justify-between">
           <h2 className="text-white font-semibold text-sm line-clamp-1">
             {movie.parsed_title || movie.title}

@@ -23,7 +23,7 @@ const genres = [
 
 export default function Header() {
   const pathname = usePathname()
-  const { language, setLanguage, isAnime } = useLanguage()
+  const { language, setLanguage, isAnime, showPicker } = useLanguage()
 
   const navLinks = isAnime
     ? [
@@ -289,6 +289,12 @@ export default function Header() {
                       {option.flag === 'JP' ? '\uD83C\uDDEF\uD83C\uDDF5' : '\uD83C\uDDEE\uD83C\uDDF3'} {option.label}
                     </button>
                   ))}
+                  <button
+                    onClick={() => { showPicker(); setUserMenuOpen(false); }}
+                    className="w-full text-center text-xs text-[#F47521] hover:underline mt-2 py-1"
+                  >
+                    Full Region Picker
+                  </button>
                 </div>
 
                 {/* Menu Items */}
