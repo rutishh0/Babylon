@@ -51,7 +51,30 @@ export default function Header() {
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   const queueEntries = Object.entries(downloadStore.queue)
-  const activeCount = queueEntries.filter(([, j]) => j.status !== 'complete').length
+  const animeActiveCount = queueEntries.filter(([, j]) => j.status !== 'complete').length
+
+  // Movie download polling (only when in movie mode)
+  const [movieJobs, setMovieJobs] = useState<Record<string, any>>({})
+
+  useEffect(() => {
+    if (isAnime) return
+    const poll = async () => {
+      try {
+        const res = await fetch('/api/anime/movies/download/status')
+        if (res.ok) {
+          const data = await res.json()
+          setMovieJobs(data || {})
+        }
+      } catch { /* ignore */ }
+    }
+    poll()
+    const interval = setInterval(poll, 5000)
+    return () => clearInterval(interval)
+  }, [isAnime])
+
+  const movieJobEntries = Object.entries(movieJobs)
+  const movieActiveCount = movieJobEntries.filter(([, j]) => (j as any).status !== 'complete').length
+  const activeCount = isAnime ? animeActiveCount : movieActiveCount
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -192,44 +215,74 @@ export default function Header() {
                     </span>
                   )}
                 </div>
-                {queueEntries.length === 0 ? (
-                  <div className="px-4 py-8 text-center text-[#a0a0a0] text-sm">
-                    No downloads yet
-                  </div>
+                {isAnime ? (
+                  queueEntries.length === 0 ? (
+                    <div className="px-4 py-8 text-center text-[#a0a0a0] text-sm">
+                      No downloads yet
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[#1a1a2e]">
+                      {queueEntries.map(([jobId, job]) => {
+                        const pct = job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0
+                        return (
+                          <div key={jobId} className="px-4 py-3">
+                            <div className="flex items-center justify-between mb-1">
+                              <p className="text-white text-sm font-medium line-clamp-1">{job.title}</p>
+                              <span className={`text-[10px] shrink-0 ml-2 ${job.status === 'complete' ? 'text-green-400' : 'text-[#F47521]'}`}>
+                                {job.status === 'complete' ? 'DONE' : 'ACTIVE'}
+                              </span>
+                            </div>
+                            <div className="w-full h-1.5 bg-[#141519] rounded-full overflow-hidden mb-1">
+                              <div
+                                className={`h-full rounded-full transition-all ${job.status === 'complete' ? 'bg-green-500' : 'bg-[#F47521]'}`}
+                                style={{ width: `${pct}%` }}
+                              />
+                            </div>
+                            <div className="flex justify-between text-[11px] text-[#a0a0a0]">
+                              <span>{job.current ? `Ep ${job.current}` : ''}</span>
+                              <span>{job.progress}/{job.total}</span>
+                            </div>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )
                 ) : (
-                  <div className="divide-y divide-[#1a1a2e]">
-                    {queueEntries.map(([jobId, job]) => {
-                      const pct = job.total > 0 ? Math.round((job.progress / job.total) * 100) : 0
-                      return (
-                        <div key={jobId} className="px-4 py-3">
-                          <div className="flex items-center justify-between mb-1">
-                            <p className="text-white text-sm font-medium line-clamp-1">{job.title}</p>
-                            <span className={`text-[10px] shrink-0 ml-2 ${job.status === 'complete' ? 'text-green-400' : 'text-[#F47521]'}`}>
-                              {job.status === 'complete' ? 'DONE' : 'ACTIVE'}
-                            </span>
+                  movieJobEntries.length === 0 ? (
+                    <p className="text-sm text-[#6b6b6b] text-center py-4">No downloads yet</p>
+                  ) : (
+                    <div className="divide-y divide-[#1a1a2e]">
+                      {movieJobEntries.map(([id, job]) => {
+                        const j = job as any
+                        const pct = j.progress <= 1 ? j.progress * 100 : j.progress
+                        return (
+                          <div key={id} className="px-3 py-2 border-b border-[#1a1a1a]">
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-medium text-white truncate">{j.title}</span>
+                              <span className={`text-[10px] ml-2 ${j.status === 'complete' ? 'text-green-400' : 'text-[#F47521]'}`}>
+                                {j.status === 'complete' ? 'DONE' : j.status?.toUpperCase() || 'QUEUED'}
+                              </span>
+                            </div>
+                            <div className="w-full h-1 bg-[#2a2c32] rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all ${j.status === 'complete' ? 'bg-green-500' : 'bg-[#F47521]'}`}
+                                style={{ width: `${Math.min(100, pct)}%` }}
+                              />
+                            </div>
+                            <span className="text-[10px] text-[#6b6b6b]">{Math.round(pct)}%</span>
                           </div>
-                          <div className="w-full h-1.5 bg-[#141519] rounded-full overflow-hidden mb-1">
-                            <div
-                              className={`h-full rounded-full transition-all ${job.status === 'complete' ? 'bg-green-500' : 'bg-[#F47521]'}`}
-                              style={{ width: `${pct}%` }}
-                            />
-                          </div>
-                          <div className="flex justify-between text-[11px] text-[#a0a0a0]">
-                            <span>{job.current ? `Ep ${job.current}` : ''}</span>
-                            <span>{job.progress}/{job.total}</span>
-                          </div>
-                        </div>
-                      )
-                    })}
-                  </div>
+                        )
+                      })}
+                    </div>
+                  )
                 )}
                 <div className="border-t border-[#3a3c42] px-4 py-2">
                   <Link
-                    href="/discover"
+                    href={isAnime ? "/discover" : "/movies"}
                     className="text-[#F47521] text-xs hover:underline"
                     onClick={() => setDownloadsOpen(false)}
                   >
-                    Go to Discover →
+                    {isAnime ? "Go to Discover \u2192" : "Go to Movies \u2192"}
                   </Link>
                 </div>
               </div>

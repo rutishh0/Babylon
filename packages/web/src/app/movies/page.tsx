@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLanguage } from '@/lib/language-context';
 import {
   browseMovies,
@@ -208,24 +208,17 @@ export default function MoviesPage() {
   // Effective language for API calls (default to tamil for movie mode)
   const movieLanguage = language === 'japanese' ? 'tamil' : language;
 
-  // Fetch browse results
-  const fetchMovies = useCallback(async () => {
-    setLoading(true);
-    try {
-      const data = await browseMovies(movieLanguage, forumType, page);
-      setMovies(Array.isArray(data) ? data : []);
-    } catch {
-      setMovies([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [movieLanguage, forumType, page]);
-
+  // Fetch browse results only when browse params change (not on every searchQuery change)
   useEffect(() => {
-    if (!searchQuery.trim()) {
-      fetchMovies();
-    }
-  }, [fetchMovies, searchQuery]);
+    if (searchQuery.trim()) return; // skip if searching
+    let cancelled = false;
+    setLoading(true);
+    browseMovies(movieLanguage, forumType, page)
+      .then((data) => { if (!cancelled) setMovies(Array.isArray(data) ? data : []); })
+      .catch(() => { if (!cancelled) setMovies([]); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [movieLanguage, forumType, page]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Debounced search
   useEffect(() => {
