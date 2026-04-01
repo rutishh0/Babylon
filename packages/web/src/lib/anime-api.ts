@@ -157,3 +157,7 @@ export function getSeasonal(): Promise<DiscoveryAnime[]> {
 export function getUpcoming(): Promise<DiscoveryAnime[]> {
   return animeRequest('/discover/upcoming');
 }
+
+export function getRecommended(): Promise<DiscoveryAnime[]> {
+  return animeRequest('/discover/recommended');
+}

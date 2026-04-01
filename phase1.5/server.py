@@ -378,11 +378,37 @@ def _jikan_get(path: str) -> dict:
         return {"data": []}
 
 
-def _format_jikan_anime(items: list) -> list:
+DONGHUA_STUDIOS = {
+    "bilibili", "tencent penguin pictures", "haoliners animation league",
+    "colored pencil animation", "b.cmay pictures", "sparkly key animation studio",
+    "pb animation", "shenying animation", "cg year", "nice boat animation",
+    "garden culture", "lingsanwu animation", "wolf smoke animation",
+}
+
+def _is_japanese_anime(item: dict) -> bool:
+    """Filter out Chinese donghua and non-Japanese animation."""
+    # Check producers/studios for known Chinese animation companies
+    for field in ("studios", "producers", "licensors"):
+        for entry in item.get(field, []):
+            name = entry.get("name", "").lower()
+            if name in DONGHUA_STUDIOS:
+                return False
+    # Chinese donghua often has no Japanese title
+    if item.get("title_japanese") is None and item.get("type") in ("ONA", "TV"):
+        # Check if any genre/theme hints at donghua
+        all_tags = [g.get("name", "").lower() for g in item.get("genres", []) + item.get("themes", []) + item.get("demographics", [])]
+        if not any(d in all_tags for d in ("shounen", "shoujo", "seinen", "josei", "kids")):
+            return False
+    return True
+
+
+def _format_jikan_anime(items: list, filter_japanese: bool = True) -> list:
     """Convert Jikan anime objects to our standard format."""
     results = []
-    for item in items[:25]:
+    for item in items:
         entry = item.get("entry", item)  # handle both direct and nested formats
+        if filter_japanese and not _is_japanese_anime(entry):
+            continue
         images = entry.get("images", {}).get("jpg", {})
         results.append({
             "id": f"mal:{entry.get('mal_id', '')}",
@@ -398,14 +424,16 @@ def _format_jikan_anime(items: list) -> list:
             "languages": ["sub"],
             "source": "jikan",
         })
+        if len(results) >= 25:
+            break
     return results
 
 
 @app.route("/api/discover/trending")
 def api_discover_trending():
-    """Top airing anime (trending)."""
+    """Top airing Japanese anime (trending). Filters out donghua."""
     try:
-        data = _jikan_get("/top/anime?filter=airing&limit=25")
+        data = _jikan_get("/top/anime?filter=airing&limit=25&sfw=true")
         return jsonify(_format_jikan_anime(data.get("data", [])))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -413,9 +441,9 @@ def api_discover_trending():
 
 @app.route("/api/discover/popular")
 def api_discover_popular():
-    """Most popular anime of all time."""
+    """Most popular Japanese anime of all time."""
     try:
-        data = _jikan_get("/top/anime?filter=bypopularity&limit=25")
+        data = _jikan_get("/top/anime?filter=bypopularity&limit=25&sfw=true")
         return jsonify(_format_jikan_anime(data.get("data", [])))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -423,9 +451,9 @@ def api_discover_popular():
 
 @app.route("/api/discover/seasonal")
 def api_discover_seasonal():
-    """Current season anime."""
+    """Current season anime (Japanese only)."""
     try:
-        data = _jikan_get("/seasons/now?limit=25")
+        data = _jikan_get("/seasons/now?limit=25&sfw=true")
         return jsonify(_format_jikan_anime(data.get("data", [])))
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -433,11 +461,73 @@ def api_discover_seasonal():
 
 @app.route("/api/discover/upcoming")
 def api_discover_upcoming():
-    """Upcoming anime."""
+    """Upcoming anime (Japanese only)."""
     try:
-        data = _jikan_get("/seasons/upcoming?limit=25")
+        data = _jikan_get("/seasons/upcoming?limit=25&sfw=true")
         return jsonify(_format_jikan_anime(data.get("data", [])))
     except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discover/recommended")
+def api_discover_recommended():
+    """Personalized recommendations based on the user's library genres.
+
+    Looks at downloaded anime genres, finds top-rated anime in those genres.
+    """
+    try:
+        library = db.get_library()
+        if not library:
+            # No library = no personalization, return popular instead
+            data = _jikan_get("/top/anime?filter=bypopularity&limit=15&sfw=true")
+            return jsonify(_format_jikan_anime(data.get("data", [])))
+
+        # Collect genres from library
+        genre_counts = {}
+        for item in library:
+            genres_raw = item.get("genres", "[]")
+            if isinstance(genres_raw, str):
+                try:
+                    genres = json.loads(genres_raw)
+                except (json.JSONDecodeError, TypeError):
+                    genres = []
+            else:
+                genres = genres_raw or []
+            for g in genres:
+                genre_counts[g] = genre_counts.get(g, 0) + 1
+
+        # Top 3 genres from library
+        top_genres = sorted(genre_counts, key=genre_counts.get, reverse=True)[:3]
+        if not top_genres:
+            data = _jikan_get("/top/anime?filter=bypopularity&limit=15&sfw=true")
+            return jsonify(_format_jikan_anime(data.get("data", [])))
+
+        # Jikan genre IDs (partial mapping of common anime genres)
+        GENRE_IDS = {
+            "Action": 1, "Adventure": 2, "Comedy": 4, "Drama": 8,
+            "Fantasy": 10, "Horror": 14, "Mystery": 7, "Romance": 22,
+            "Sci-Fi": 24, "Slice of Life": 36, "Sports": 30,
+            "Supernatural": 37, "Thriller": 41, "Music": 19,
+        }
+
+        all_recs = []
+        seen_ids = set()
+        # Also exclude anime already in library
+        library_titles = {item.get("title", "").lower() for item in library}
+
+        for genre_name in top_genres:
+            genre_id = GENRE_IDS.get(genre_name)
+            if not genre_id:
+                continue
+            data = _jikan_get(f"/anime?genres={genre_id}&order_by=score&sort=desc&limit=15&sfw=true")
+            for item in _format_jikan_anime(data.get("data", []), filter_japanese=True):
+                if item["id"] not in seen_ids and item["title"].lower() not in library_titles:
+                    seen_ids.add(item["id"])
+                    all_recs.append(item)
+
+        return jsonify(all_recs[:25])
+    except Exception as e:
+        logger.error("Recommendations error: %s", e)
         return jsonify({"error": str(e)}), 500
 
 

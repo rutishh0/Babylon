@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { getLibrary, getTrending, getPopular, getSeasonal } from '@/lib/anime-api';
+import { getLibrary, getTrending, getPopular, getSeasonal, getRecommended } from '@/lib/anime-api';
 import type { LibraryAnime, DiscoveryAnime } from '@/lib/anime-api';
 import type { HeroAnime } from '@/components/HeroCarousel';
 import HeroCarousel from '@/components/HeroCarousel';
@@ -154,6 +154,7 @@ function AnimeHome() {
   const [trending, setTrending] = useState<DiscoveryAnime[]>([]);
   const [popular, setPopular] = useState<DiscoveryAnime[]>([]);
   const [seasonal, setSeasonal] = useState<DiscoveryAnime[]>([]);
+  const [recommended, setRecommended] = useState<DiscoveryAnime[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -173,12 +174,17 @@ function AnimeHome() {
       .then((data) => (Array.isArray(data) ? data : []))
       .catch(() => [] as DiscoveryAnime[]);
 
-    Promise.allSettled([libraryP, trendingP, popularP, seasonalP]).then(
-      ([libResult, trendResult, popResult, seasonResult]) => {
+    const recommendedP = getRecommended()
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => [] as DiscoveryAnime[]);
+
+    Promise.allSettled([libraryP, trendingP, popularP, seasonalP, recommendedP]).then(
+      ([libResult, trendResult, popResult, seasonResult, recResult]) => {
         setLibrary(libResult.status === 'fulfilled' ? libResult.value : []);
         setTrending(trendResult.status === 'fulfilled' ? trendResult.value : []);
         setPopular(popResult.status === 'fulfilled' ? popResult.value : []);
         setSeasonal(seasonResult.status === 'fulfilled' ? seasonResult.value : []);
+        setRecommended(recResult.status === 'fulfilled' ? recResult.value : []);
         setLoading(false);
       },
     );
@@ -253,6 +259,15 @@ function AnimeHome() {
         {/* Continue Watching / Your Library */}
         {recentlyDownloaded.length > 0 && (
           <AnimeCarousel title="Your Library" anime={recentlyDownloaded} />
+        )}
+
+        {/* Recommended for You (personalized by library genres) */}
+        {recommended.length > 0 && (
+          <AnimeCarousel
+            title="Recommended for You"
+            anime={recommended.map(discoveryToCarouselItem)}
+            onItemClick={navigateToDiscover}
+          />
         )}
 
         {/* Trending Now (discovery) */}
