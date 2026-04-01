@@ -60,13 +60,10 @@ fun MyListsScreen(
             selectedTabIndex = selectedTabIndex,
             containerColor = BabylonCard,
             contentColor = BabylonOrange,
-            indicator = { tabPositions ->
-                if (selectedTabIndex < tabPositions.size) {
-                    TabRowDefaults.SecondaryIndicator(
-                        modifier = Modifier.tabIndicatorOffset(tabPositions[selectedTabIndex]),
-                        color = BabylonOrange,
-                    )
-                }
+            indicator = {
+                TabRowDefaults.SecondaryIndicator(
+                    color = BabylonOrange,
+                )
             },
         ) {
             tabs.forEachIndexed { index, title ->
