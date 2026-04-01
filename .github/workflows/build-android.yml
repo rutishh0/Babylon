@@ -25,35 +25,13 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
-          cache: 'gradle'
 
-      - name: Fix gradlew line endings and permissions
-        run: |
-          sed -i 's/\r$//' android/gradlew
-          chmod +x android/gradlew
-
-      - name: Validate Gradle wrapper
-        uses: gradle/actions/wrapper-validation@v3
-
-      - name: Cache Gradle packages
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            android/.gradle
-          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle.kts', 'android/gradle/libs.versions.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-gradle-
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Build Debug APK
         working-directory: android
-        run: |
-          ./gradlew assembleDebug \
-            --stacktrace \
-            --no-daemon
-        env:
-          GRADLE_OPTS: "-Dorg.gradle.daemon=false -Dorg.gradle.parallel=true -Dorg.gradle.workers.max=4"
+        run: ./gradlew assembleDebug --stacktrace
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
@@ -73,7 +51,4 @@ jobs:
           echo "|----------|-------|" >> $GITHUB_STEP_SUMMARY
           echo "| APK | \`$(basename $APK)\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Size | $SIZE |" >> $GITHUB_STEP_SUMMARY
-          echo "| SHA | \`${{ github.sha }}\` |" >> $GITHUB_STEP_SUMMARY
           echo "| Version | v2.0.0 |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "> Server URL is configured at runtime in Settings (default: 192.168.1.140:5000)" >> $GITHUB_STEP_SUMMARY
