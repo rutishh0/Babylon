@@ -13,6 +13,7 @@ import {
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useDownloadStore } from "@/stores/download-store"
+import { useLanguage, ContentLanguage } from "@/lib/language-context"
 
 const genres = [
   "Action", "Adventure", "Comedy", "Drama", "Fantasy",
@@ -20,14 +21,21 @@ const genres = [
   "Shonen", "Slice of Life", "Sports", "Supernatural", "Thriller",
 ]
 
-const navLinks = [
-  { href: "/", label: "Home" },
-  { href: "/anime", label: "Library" },
-  { href: "/discover", label: "Discover" },
-]
-
 export default function Header() {
   const pathname = usePathname()
+  const { language, setLanguage, isAnime } = useLanguage()
+
+  const navLinks = isAnime
+    ? [
+        { href: "/", label: "Home" },
+        { href: "/anime", label: "Library" },
+        { href: "/discover", label: "Discover" },
+      ]
+    : [
+        { href: "/", label: "Home" },
+        { href: "/movies", label: "Movies" },
+        { href: "/discover", label: "Downloads" },
+      ]
   const [categoriesOpen, setCategoriesOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
@@ -260,6 +268,27 @@ export default function Header() {
                   <div className="flex-1">
                     <p className="text-sm font-medium text-white">Babylon User</p>
                   </div>
+                </div>
+
+                {/* Language / Region selector */}
+                <div className="px-3 py-2 border-b border-[#2a2c32]">
+                  <p className="text-xs text-[#6b6b6b] mb-2">Content Region</p>
+                  {[
+                    { value: 'japanese', label: 'Japanese (Anime)', flag: 'JP' },
+                    { value: 'tamil', label: 'Tamil', flag: 'IN' },
+                    { value: 'telugu', label: 'Telugu', flag: 'IN' },
+                    { value: 'kannada', label: 'Kannada', flag: 'IN' },
+                  ].map((option) => (
+                    <button
+                      key={option.value}
+                      onClick={() => { setLanguage(option.value as ContentLanguage); setUserMenuOpen(false); }}
+                      className={`w-full text-left px-2 py-1.5 rounded text-sm ${
+                        language === option.value ? 'text-[#F47521] bg-[#23252b]' : 'text-[#a0a0a0] hover:text-white hover:bg-[#1a1a1a]'
+                      }`}
+                    >
+                      {option.flag === 'JP' ? '\uD83C\uDDEF\uD83C\uDDF5' : '\uD83C\uDDEE\uD83C\uDDF3'} {option.label}
+                    </button>
+                  ))}
                 </div>
 
                 {/* Menu Items */}

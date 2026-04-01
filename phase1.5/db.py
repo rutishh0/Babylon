@@ -64,6 +64,34 @@ def init_db():
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
+
+        CREATE TABLE IF NOT EXISTS movie (
+            id TEXT PRIMARY KEY,
+            title TEXT NOT NULL,
+            year INTEGER,
+            languages TEXT,
+            quality_tag TEXT,
+            resolutions TEXT,
+            file_size TEXT,
+            has_esub INTEGER DEFAULT 0,
+            topic_url TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS movie_download_job (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            movie_id TEXT NOT NULL,
+            title TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'queued',
+            magnet_url TEXT NOT NULL,
+            torrent_hash TEXT,
+            language TEXT,
+            resolution TEXT,
+            save_path TEXT,
+            progress REAL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     conn.commit()
 
@@ -261,3 +289,111 @@ def _parse_job(job):
             except (json.JSONDecodeError, TypeError):
                 pass
     return job
+
+
+# ============================================================
+# Movie helpers (TamilMV) — completely separate from anime helpers
+# ============================================================
+
+def upsert_movie(data: dict) -> None:
+    """Insert or update a movie by id."""
+    conn = _get_conn()
+    movie_id = data.get("id")
+    if not movie_id:
+        raise ValueError("movie data must include 'id'")
+
+    languages = data.get("languages")
+    if isinstance(languages, (list, tuple)):
+        languages = json.dumps(languages)
+    resolutions = data.get("resolutions")
+    if isinstance(resolutions, (list, tuple)):
+        resolutions = json.dumps(resolutions)
+
+    conn.execute("""
+        INSERT INTO movie (id, title, year, languages, quality_tag, resolutions, file_size, has_esub, topic_url)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(id) DO UPDATE SET
+            title = COALESCE(excluded.title, movie.title),
+            year = COALESCE(excluded.year, movie.year),
+            languages = COALESCE(excluded.languages, movie.languages),
+            quality_tag = COALESCE(excluded.quality_tag, movie.quality_tag),
+            resolutions = COALESCE(excluded.resolutions, movie.resolutions),
+            file_size = COALESCE(excluded.file_size, movie.file_size),
+            has_esub = COALESCE(excluded.has_esub, movie.has_esub),
+            topic_url = COALESCE(excluded.topic_url, movie.topic_url)
+    """, (
+        movie_id,
+        data.get("title", "Unknown"),
+        data.get("year"),
+        languages,
+        data.get("quality_tag"),
+        resolutions,
+        data.get("file_size"),
+        1 if data.get("has_esub") else 0,
+        data.get("topic_url"),
+    ))
+    conn.commit()
+
+
+def get_movie_library() -> list[dict]:
+    """Get all movies."""
+    conn = _get_conn()
+    rows = conn.execute("SELECT * FROM movie ORDER BY created_at DESC").fetchall()
+    results = []
+    for row in rows:
+        item = dict(row)
+        for field in ("languages", "resolutions"):
+            val = item.get(field)
+            if val and isinstance(val, str):
+                try:
+                    item[field] = json.loads(val)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+        results.append(item)
+    return results
+
+
+def create_movie_job(movie_id, title, magnet_url, language=None, resolution=None, save_path=None) -> int:
+    """Create a movie download job and return its id."""
+    conn = _get_conn()
+    cursor = conn.execute("""
+        INSERT INTO movie_download_job (movie_id, title, magnet_url, language, resolution, save_path)
+        VALUES (?, ?, ?, ?, ?, ?)
+    """, (movie_id, title, magnet_url, language, resolution, save_path))
+    conn.commit()
+    return cursor.lastrowid
+
+
+def update_movie_job(job_id, **kwargs) -> None:
+    """Update fields on a movie download job."""
+    conn = _get_conn()
+    allowed = {"status", "progress", "torrent_hash"}
+    sets = []
+    vals = []
+    for key, val in kwargs.items():
+        if key not in allowed:
+            continue
+        sets.append(f"{key} = ?")
+        vals.append(val)
+    if not sets:
+        return
+    sets.append("updated_at = CURRENT_TIMESTAMP")
+    vals.append(job_id)
+    conn.execute(f"UPDATE movie_download_job SET {', '.join(sets)} WHERE id = ?", vals)
+    conn.commit()
+
+
+def get_movie_job(job_id) -> dict:
+    """Get a single movie download job."""
+    conn = _get_conn()
+    row = conn.execute("SELECT * FROM movie_download_job WHERE id = ?", (job_id,)).fetchone()
+    if not row:
+        return None
+    return dict(row)
+
+
+def get_all_movie_jobs() -> list[dict]:
+    """Get all movie download jobs."""
+    conn = _get_conn()
+    rows = conn.execute("SELECT * FROM movie_download_job ORDER BY created_at DESC").fetchall()
+    return [dict(row) for row in rows]

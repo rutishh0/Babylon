@@ -347,6 +347,168 @@ def api_library_stream(anime_id, ep_num):
         return jsonify({"error": str(e)}), 500
 
 
+# ============================================================
+# Movie routes (TamilMV) — completely separate from anime routes
+# ============================================================
+
+@app.route("/api/movies/browse")
+def api_movies_browse():
+    """Browse a TamilMV forum page."""
+    language = request.args.get("language", "tamil")
+    forum_type = request.args.get("forum_type", "webhd")
+    page = int(request.args.get("page", "1"))
+
+    from tamilmv_scraper import browse_forum, FORUMS
+    forums = FORUMS.get(language.lower(), {})
+    forum_id = forums.get(forum_type)
+    if not forum_id:
+        return jsonify({"error": f"Unknown language/forum_type: {language}/{forum_type}"}), 400
+
+    results = browse_forum(forum_id, page=page)
+    return jsonify(results)
+
+
+@app.route("/api/movies/search")
+def api_movies_search():
+    """Search TamilMV by title."""
+    q = request.args.get("q", "").strip()
+    language = request.args.get("language", None)
+    if not q:
+        return jsonify({"error": "Query parameter 'q' is required"}), 400
+
+    from tamilmv_scraper import search_movies
+    results = search_movies(q, language=language)
+    return jsonify(results)
+
+
+@app.route("/api/movies/variants")
+def api_movies_variants():
+    """Get magnet link variants for a topic."""
+    topic_url = request.args.get("topic_url", "").strip()
+    if not topic_url:
+        return jsonify({"error": "Parameter 'topic_url' is required"}), 400
+
+    from tamilmv_scraper import get_variants
+    variants = get_variants(topic_url)
+    return jsonify(variants)
+
+
+@app.route("/api/movies/download", methods=["POST"])
+def api_movies_download():
+    """Start a movie download via qBittorrent."""
+    data = request.get_json()
+    if not data or not data.get("magnet_url"):
+        return jsonify({"error": "magnet_url is required"}), 400
+
+    magnet_url = data["magnet_url"]
+    title = data.get("title", "Unknown Movie")
+    year = data.get("year")
+    language = data.get("language")
+    resolution = data.get("resolution")
+    languages = data.get("languages", [])
+    quality_tag = data.get("quality_tag")
+    topic_url = data.get("topic_url")
+
+    # Generate a movie ID from title+year
+    import hashlib
+    movie_id = hashlib.md5(f"{title}_{year}".encode()).hexdigest()[:12]
+
+    # Persist movie metadata
+    db.upsert_movie({
+        "id": movie_id,
+        "title": title,
+        "year": year,
+        "languages": json.dumps(languages) if isinstance(languages, list) else languages,
+        "quality_tag": quality_tag,
+        "topic_url": topic_url,
+    })
+
+    save_path = os.path.join(DEFAULT_OUTPUT, "movies", title.replace("/", "_"))
+    os.makedirs(save_path, exist_ok=True)
+
+    # Create job in DB
+    job_id = db.create_movie_job(
+        movie_id=movie_id,
+        title=title,
+        magnet_url=magnet_url,
+        language=language,
+        resolution=resolution,
+        save_path=save_path,
+    )
+
+    # Try to add to qBittorrent
+    try:
+        from qbt_client import QBittorrentClient
+        qbt = QBittorrentClient()
+        if qbt.login():
+            torrent_hash = qbt.add_magnet(magnet_url, save_path=save_path)
+            db.update_movie_job(job_id, status="downloading", torrent_hash=torrent_hash)
+
+            # Start background polling thread
+            def poll_torrent():
+                import time
+                while True:
+                    try:
+                        info = qbt.get_torrent_info(torrent_hash)
+                        if not info:
+                            time.sleep(5)
+                            continue
+                        progress = info.get("progress", 0)
+                        state = info.get("state", "")
+                        db.update_movie_job(job_id, progress=progress)
+                        if progress >= 1.0 or state in ("uploading", "pausedUP", "stalledUP"):
+                            db.update_movie_job(job_id, status="complete", progress=1.0)
+                            break
+                        time.sleep(5)
+                    except Exception as e:
+                        logger.error("Torrent poll error: %s", e)
+                        time.sleep(10)
+
+            t = threading.Thread(target=poll_torrent, daemon=True)
+            t.start()
+
+            return jsonify({
+                "job_id": job_id,
+                "torrent_hash": torrent_hash,
+                "message": f"Added '{title}' to qBittorrent",
+                "save_path": save_path,
+            })
+        else:
+            db.update_movie_job(job_id, status="error")
+            return jsonify({"error": "Failed to connect to qBittorrent"}), 500
+    except Exception as e:
+        logger.error("qBittorrent error: %s", e)
+        db.update_movie_job(job_id, status="error")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/movies/download/status")
+def api_movies_download_status():
+    """Get movie download job status."""
+    job_id = request.args.get("job_id")
+    try:
+        if job_id:
+            job = db.get_movie_job(int(job_id))
+            if not job:
+                return jsonify({"error": "Job not found"}), 404
+            return jsonify(dict(job))
+        else:
+            jobs = db.get_all_movie_jobs()
+            return jsonify({str(j["id"]): dict(j) for j in jobs})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/movies/library")
+def api_movies_library():
+    """List all movies in the library."""
+    try:
+        movies = db.get_movie_library()
+        return jsonify(movies)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 # Initialize DB and scan disk on startup
 db.init_db()
 media_path = os.environ.get("DOWNLOAD_OUTPUT", "B:/Babylon/media")
