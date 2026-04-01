@@ -1,7 +1,7 @@
 # Babylon -- Complete Documentation
 
 > Definitive reference for the Babylon anime streaming platform.
-> Last updated: 2026-03-31
+> Last updated: 2026-04-01
 
 ---
 
@@ -13,10 +13,11 @@
 4. [Frontend (packages/web/)](#4-frontend-packagesweb)
 5. [Anime Server (phase1.5/)](#5-anime-server-phase15)
 6. [Control Panel (control-panel/)](#6-control-panel-control-panel)
-7. [Deployment](#7-deployment)
-8. [Development Workflow](#8-development-workflow)
-9. [Troubleshooting](#9-troubleshooting)
-10. [Phase History](#10-phase-history)
+7. [Android App (android/)](#7-android-app-android)
+8. [Deployment](#8-deployment)
+9. [Development Workflow](#9-development-workflow)
+10. [Troubleshooting](#10-troubleshooting)
+11. [Phase History](#11-phase-history)
 
 ---
 
@@ -27,15 +28,15 @@ Babylon is a personal anime streaming platform designed for LAN use. It searches
 ### Architecture at a Glance
 
 ```
- Browser (any device on LAN)
-    |
-    | HTTP :3001
-    v
- Next.js 15 Frontend (packages/web/)
-    |
-    | /api/anime/* rewrite
-    v
- Flask Anime Server (phase1.5/)  :5000
+ Browser (any device on LAN)          Android App (phone on WiFi)
+    |                                      |
+    | HTTP :3001                           | HTTP :5000 (direct LAN)
+    v                                      |
+ Next.js 15 Frontend (packages/web/)       |
+    |                                      |
+    | /api/anime/* rewrite                 |
+    v                                      v
+ Flask Anime Server (phase1.5/)  :5000 <---+
     |
     |--- AllAnime GraphQL API (api.allanime.day)   [search, episodes, streams]
     |--- Local Disk (B:\Babylon\media)             [download, playback]
@@ -64,8 +65,14 @@ Babylon is a personal anime streaming platform designed for LAN use. It searches
 | Database | SQLite | 3.x |
 | Process Manager | PM2 | latest |
 | Desktop Control Panel | customtkinter (Python) | 5.2+ |
+| Android App | Kotlin + Jetpack Compose | 2.1.0 / BOM 2025.02 |
+| Android DI | Hilt (Dagger) | 2.53.1 |
+| Android Networking | Retrofit + Kotlinx Serialization | 2.11.0 |
+| Android Video | Media3 ExoPlayer | 1.5.1 |
+| Android Image Loading | Coil 3 | 3.1.0 |
+| Android Local DB | Room | 2.7.0 |
 | Build System | pnpm + Turborepo | -- |
-| Language | TypeScript 5 (frontend), Python 3.12+ (backend) | -- |
+| Language | TypeScript 5 (frontend), Python 3.12+ (backend), Kotlin 2.1 (Android) | -- |
 
 ---
 
@@ -185,8 +192,8 @@ Flask server starts
      Alienware M15 R3           Personal          Phone / Tablet
      192.168.1.140              Laptop            (any WiFi device)
      (Ethernet, static IP)      (WiFi)            (WiFi)
-     MAC: C0-3E-BA-7F-5E-60
-     |
+     MAC: C0-3E-BA-7F-5E-60                       |-- Browser -> :3001 (Web UI)
+     |                                             |-- Babylon Android App -> :5000 (Flask API direct)
      |-- Port 3000: Fastify API (babylon-api)
      |-- Port 3001: Next.js Web UI (babylon-web)
      |-- Port 5000: Flask Anime Server (babylon-anime)
@@ -249,6 +256,40 @@ B:\Babylon\
 |   |   +-- run.bat                   # Launch with auto-venv
 |   |   +-- build.bat                 # Compile to .exe
 |   |   +-- requirements.txt          # Python deps
+|   |
+|   +-- android\                       # Babylon Android app (Kotlin + Compose)
+|   |   +-- app\
+|   |   |   +-- src\main\
+|   |   |   |   +-- java\com\babylon\app\
+|   |   |   |   |   +-- data\             # Data layer
+|   |   |   |   |   |   +-- api\          # Retrofit API client + DTOs
+|   |   |   |   |   |   +-- datastore\    # DataStore preferences (server URL, etc.)
+|   |   |   |   |   |   +-- local\        # Room DB (DAOs, entities)
+|   |   |   |   |   |   +-- model\        # Domain models
+|   |   |   |   |   |   +-- repository\   # 6 repositories (Anime, Library, Download, ...)
+|   |   |   |   |   +-- di\              # Hilt DI modules
+|   |   |   |   |   +-- navigation\      # Type-safe @Serializable routes
+|   |   |   |   |   +-- player\          # ExoPlayer wrapper + PiP
+|   |   |   |   |   +-- ui\              # Screens and components
+|   |   |   |   |   |   +-- home\        # Home screen (hero carousel, genre rows)
+|   |   |   |   |   |   +-- mylists\     # Watchlist, History, Downloads tabs
+|   |   |   |   |   |   +-- discover\    # Genre grid discovery
+|   |   |   |   |   |   +-- search\      # AllAnime search
+|   |   |   |   |   |   +-- detail\      # Anime detail + episode list
+|   |   |   |   |   |   +-- player\      # Full-screen video player
+|   |   |   |   |   |   +-- queue\       # Server download queue monitor
+|   |   |   |   |   |   +-- settings\    # Server URL config, prefs
+|   |   |   |   |   |   +-- components\  # Shared composables
+|   |   |   |   |   |   +-- theme\       # Material 3 dark theme
+|   |   |   |   |   +-- util\            # Utilities
+|   |   |   |   +-- res\                  # Android resources
+|   |   |   |   +-- AndroidManifest.xml
+|   |   |   +-- build.gradle.kts          # App-level Gradle config
+|   |   +-- gradle\
+|   |   |   +-- libs.versions.toml        # Version catalog
+|   |   +-- build.gradle.kts              # Project-level Gradle config
+|   |   +-- settings.gradle.kts
+|   |   +-- gradlew / gradlew.bat
 |   |
 |   +-- ingest\                       # Phase 1 Nyaa daemon (deprecated)
 |   |   +-- daemon.py
@@ -1273,9 +1314,172 @@ pyinstaller>=6.0.0
 
 ---
 
-## 7. Deployment
+## 7. Android App (`android/`)
 
-### 7.1 Alienware Server Hardware
+### 7.1 Overview
+
+Babylon Android v2.0.0 is a Crunchyroll-style native Android client for the Babylon platform. It connects directly to the Flask anime server over the LAN (bypassing the Next.js frontend entirely) and provides a full-featured mobile experience for browsing, searching, streaming, and downloading anime.
+
+**Key characteristics:**
+- Connects to Flask LAN backend at a runtime-configurable URL (default `http://192.168.1.140:5000`)
+- Built with Kotlin 2.1, Jetpack Compose, Hilt, Retrofit, and Media3 ExoPlayer
+- Pure black (`#000000`) theme with Crunchyroll orange (`#F47521`) accent -- matches the web UI design language
+- 8 screens with 5-tab bottom navigation
+- APK built via GitHub Actions workflow, no Play Store distribution
+
+### 7.2 Screens
+
+| Screen | Description |
+|--------|-------------|
+| **Home** | Hero carousel of featured library anime, continue watching row with progress bars, genre-grouped rows from the server library |
+| **My Lists** | 3 tabs: Watchlist (Room-persisted), History (Room-persisted), Downloads (phone-local offline episodes) |
+| **Discover** | Genre grid (17 genres), tappable search bar that navigates to the Search screen |
+| **Search** | Full-screen AllAnime search with 400ms debounce, results rendered as poster cards |
+| **Anime Detail** | Hero banner with cover art, metadata (year, status, genres, episode count), episode list with Sub/Dub toggle, download bottom sheet for batch episode selection |
+| **Player** | ExoPlayer full-screen landscape playback, custom overlay controls, Picture-in-Picture support, auto-saves watch progress to Room |
+| **Queue** | Server download job monitor matching the web UI's queue sidebar, polls every 2 seconds, shows active job count badge on the bottom nav tab |
+| **Settings** | Server URL input with "Test Connection" button (pings `/api/library`), quality and language preferences, storage info for offline downloads |
+
+### 7.3 Navigation
+
+The app uses Jetpack Navigation Compose 2.8 with type-safe `@Serializable` route objects.
+
+**Bottom navigation tabs (5):**
+
+| Tab | Icon | Destination |
+|-----|------|-------------|
+| Home | Home | `HomeRoute` |
+| My Lists | Bookmark | `MyListsRoute` |
+| Discover | Compass | `DiscoverRoute` |
+| Queue | Download | `QueueRoute` (badge shows active job count) |
+| Settings | Settings | `SettingsRoute` |
+
+**Push destinations (not in bottom nav):**
+
+| Destination | Navigated From |
+|-------------|----------------|
+| Search | Discover (tapping search bar) |
+| Anime Detail | Home, My Lists, Discover, Search (tapping any anime card) |
+| Player | Anime Detail (tapping an episode), My Lists History (tapping a history entry) |
+
+### 7.4 Data Layer
+
+#### Retrofit API Client
+
+The Android app communicates with all 9 Flask API endpoints via Retrofit with Kotlinx Serialization:
+
+| Endpoint | Method | Android Usage |
+|----------|--------|---------------|
+| `/api/search` | GET | Search screen |
+| `/api/episodes` | GET | Detail screen episode list |
+| `/api/stream` | GET | Player (AllAnime direct streaming) |
+| `/api/download` | POST | Detail screen batch download |
+| `/api/download/status` | GET | Queue screen polling |
+| `/api/library` | GET | Home screen, Discover, connection test |
+| `/api/library/<id>` | GET | Detail screen metadata |
+| `/api/library/<id>/stream/<ep>` | GET | Player (server library streaming) |
+| `/api/health` | GET | Settings connection test |
+
+**Dynamic base URL:** The server URL is stored in DataStore Preferences and injected into OkHttp via a custom interceptor. Changing the URL in Settings takes effect immediately without restarting the app.
+
+#### Room Database
+
+Local persistence for offline-first features:
+
+| Entity | Table | Purpose |
+|--------|-------|---------|
+| `WatchlistEntity` | `watchlist` | User's saved anime (add/remove from any detail page) |
+| `WatchHistoryEntity` | `watch_history` | Episode progress tracking (anime ID, episode, position, duration, timestamp) |
+| `OfflineEpisodeEntity` | `offline_episodes` | Downloaded episodes stored on the phone's local storage |
+
+#### Repositories
+
+| Repository | Responsibilities |
+|------------|-----------------|
+| `AnimeRepository` | Search, episode listing, stream resolution via Retrofit |
+| `LibraryRepository` | Server library browsing and anime detail via Retrofit |
+| `DownloadRepository` | Server download job creation and status polling via Retrofit |
+| `WatchlistRepository` | Room CRUD for watchlist entries |
+| `WatchHistoryRepository` | Room CRUD for watch history and progress tracking |
+| `OfflineRepository` | Room CRUD for offline episodes + local file management |
+
+### 7.5 Key Dependencies
+
+| Dependency | Version | Purpose |
+|------------|---------|---------|
+| Kotlin | 2.1.0 | Language |
+| Jetpack Compose BOM | 2025.02.00 | UI toolkit (Material 3) |
+| Hilt | 2.53.1 | Dependency injection |
+| Navigation Compose | 2.8.7 | Type-safe navigation |
+| Retrofit | 2.11.0 | HTTP client |
+| OkHttp | 4.12.0 | HTTP transport + interceptors |
+| Kotlinx Serialization | 1.7.3 | JSON parsing |
+| Media3 ExoPlayer | 1.5.1 | Video playback + HLS |
+| Coil 3 | 3.1.0 | Async image loading |
+| Room | 2.7.0 | Local SQLite database |
+| DataStore Preferences | 1.1.3 | Key-value preferences |
+| WorkManager | 2.10.0 | Background download tasks |
+| Lifecycle | 2.8.7 | ViewModel + Compose integration |
+| Coroutines | 1.9.0 | Async / concurrency |
+| AGP | 8.8.0 | Android Gradle Plugin |
+| KSP | 2.1.0-1.0.29 | Kotlin Symbol Processing (Room, Hilt) |
+
+### 7.6 Building
+
+#### GitHub Actions (CI)
+
+The workflow at `.github/workflows/build-android.yml` triggers on:
+- Push to any file under `android/`
+- Push to the workflow file itself
+- Manual `workflow_dispatch`
+
+It runs on `ubuntu-latest` with JDK 21 (Temurin), executes `./gradlew assembleDebug`, and uploads the APK as an artifact named `babylon-v2.0.0-{sha}` with 90-day retention.
+
+#### Manual Build
+
+1. Open the `android/` directory in Android Studio (Ladybug or later)
+2. Sync Gradle (automatic on project open)
+3. Run on a connected device or emulator (API 24+)
+
+Or from the command line:
+
+```cmd
+cd android
+gradlew.bat assembleDebug
+```
+
+**APK output location:** `android/app/build/outputs/apk/debug/app-debug.apk`
+
+### 7.7 Configuration
+
+- **Server URL** is configured at runtime in the Settings screen, not at build time
+- **Default URL:** `http://192.168.1.140:5000`
+- **Test Connection** button pings `GET /api/library` and reports success/failure
+- **Cleartext HTTP** is allowed via `network_security_config.xml` (required because the Flask server runs plain HTTP on the LAN)
+- **Preferences** (server URL, preferred quality, preferred language) are persisted in DataStore and survive app restarts
+
+### 7.8 Video Playback
+
+The Player screen uses Media3 ExoPlayer in full-screen landscape mode with three playback sources:
+
+| Source | URL Pattern | Headers | When Used |
+|--------|-------------|---------|-----------|
+| Server library episode | `{serverUrl}/api/library/{animeId}/stream/{epNum}` | None (same LAN) | Tapping a downloaded episode from Detail or History |
+| AllAnime direct stream | URL from `/api/stream` response | `Referer: https://allmanga.to` | Streaming an episode not yet downloaded to the server |
+| Offline (phone-local) | `file://` local path | None | Playing a previously downloaded-to-phone episode |
+
+**Playback features:**
+- Custom overlay controls (play/pause, seek bar, episode title, skip +10s / -10s)
+- Picture-in-Picture (PiP) mode on supported devices (API 26+)
+- Auto-save progress: on pause and on exit, the current position is written to Room `watch_history`
+- Resume support: when re-opening an episode, playback resumes from the last saved position
+- ExoPlayer handles HTTP Range headers, HLS (`.m3u8`), and progressive MP4 seamlessly
+
+---
+
+## 8. Deployment
+
+### 8.1 Alienware Server Hardware
 
 | Spec | Value |
 |------|-------|
@@ -1288,7 +1492,7 @@ pyinstaller>=6.0.0
 | Network | Ethernet, static IP `192.168.1.140`, MAC `C0-3E-BA-7F-5E-60` |
 | Role | Headless server -- lid closed, no monitor, boots to desktop automatically |
 
-### 7.2 Windows Configuration
+### 8.2 Windows Configuration
 
 The Alienware is configured as a headless always-on server:
 
@@ -1302,7 +1506,7 @@ The Alienware is configured as a headless always-on server:
 | Hibernate | Disabled (`powercfg /hibernate off`) | Prevents unexpected shutdown |
 | USB selective suspend | Disabled | Prevents USB device disconnects |
 
-### 7.3 PM2 Services (`deploy/ecosystem.config.cjs`)
+### 8.3 PM2 Services (`deploy/ecosystem.config.cjs`)
 
 ```javascript
 module.exports = {
@@ -1359,7 +1563,7 @@ module.exports = {
 - Each service allows up to 10 restarts with a 5-second delay between attempts
 - `--experimental-vm-modules` flag is required for the Fastify API's ESM imports
 
-### 7.4 Environment Variables
+### 8.4 Environment Variables
 
 #### babylon-api (Fastify)
 
@@ -1387,7 +1591,7 @@ module.exports = {
 | `DOWNLOAD_OUTPUT` | `B:/Babylon/media` (default in code) | Download destination directory |
 | `DOWNLOAD_DB` | `B:/Babylon/data/phase15.db` (default in code) | SQLite database path |
 
-### 7.5 Maintenance Scripts
+### 8.5 Maintenance Scripts
 
 #### `restart-clean.bat` -- Full Reset
 
@@ -1438,7 +1642,7 @@ Start this in a terminal on the Alienware for hands-free deployment whenever you
 
 A post-receive hook installed in `B:\Babylon\repo.git\hooks\` for push-to-deploy via a bare git repository on the Alienware. Triggers on `git push alienware master`.
 
-### 7.6 Auto-Start on Boot
+### 8.6 Auto-Start on Boot
 
 PM2 processes are resurrected on Windows login via a scheduled task:
 
@@ -1448,11 +1652,12 @@ schtasks /create /tn "PM2 Startup" /tr "cmd /c pm2 resurrect" /sc onlogon /rl hi
 
 Combined with Windows auto-login (no password prompt), the Alienware boots up, logs in, and PM2 resurrects all saved processes automatically.
 
-### 7.7 Accessing from Other Devices
+### 8.7 Accessing from Other Devices
 
 | Service | URL | Notes |
 |---------|-----|-------|
 | Web UI (primary) | `http://192.168.1.140:3001` | Full Babylon interface |
+| Android App | `http://192.168.1.140:5000` | Native app connects directly to Flask API over LAN (configurable in Settings) |
 | Fastify API health | `http://192.168.1.140:3000/api/health` | Returns `{"status":"ok"}` |
 | Flask API | `http://192.168.1.140:5000/api/library` | Direct Flask access (bypassing Next.js) |
 | qBittorrent WebUI | `http://192.168.1.140:8080` | Legacy torrent client |
@@ -1461,9 +1666,9 @@ All URLs are LAN-only. Replace `192.168.1.140` with the Alienware's actual stati
 
 ---
 
-## 8. Development Workflow
+## 9. Development Workflow
 
-### 8.1 Making Changes
+### 9.1 Making Changes
 
 The standard development cycle:
 
@@ -1480,7 +1685,7 @@ The standard development cycle:
      pm2 restart all
      ```
 
-### 8.2 Adding New Anime Sources (Providers)
+### 9.2 Adding New Anime Sources (Providers)
 
 To add a new anime source:
 
@@ -1532,7 +1737,7 @@ cd phase1.5
 python -c "from babylon_anime.providers import get_provider; p = get_provider('newprovider'); print(p.search('naruto'))"
 ```
 
-### 8.3 Testing Locally
+### 9.3 Testing Locally
 
 #### Flask Server (standalone)
 
@@ -1579,7 +1784,7 @@ Runs at `http://localhost:3000` (dev) or the configured port. Note: the Flask se
 pm2 start deploy/ecosystem.config.cjs
 ```
 
-### 8.4 Project Structure Conventions
+### 9.4 Project Structure Conventions
 
 - **Monorepo:** pnpm workspaces + Turborepo
 - **Packages:** `packages/web` (frontend), `packages/api` (API), `packages/shared` (shared types)
@@ -1590,7 +1795,7 @@ pm2 start deploy/ecosystem.config.cjs
 
 ---
 
-## 9. Troubleshooting
+## 10. Troubleshooting
 
 ### Common Issues
 
@@ -1736,7 +1941,7 @@ Get-PSDrive B
 
 ---
 
-## 10. Phase History
+## 11. Phase History
 
 ### Phase 1 -- Cloud Architecture (Deprecated)
 
@@ -1986,6 +2191,24 @@ SELECT * FROM download_job ORDER BY created_at DESC LIMIT 5;
 :: Reset database (Flask will re-scan media on restart)
 del B:\Babylon\data\phase15.db
 pm2 restart babylon-anime
+```
+
+### Android Build
+
+```cmd
+:: Build debug APK (from repo root)
+cd android
+gradlew.bat assembleDebug
+
+:: APK output
+:: android\app\build\outputs\apk\debug\app-debug.apk
+
+:: Clean build
+cd android
+gradlew.bat clean assembleDebug
+
+:: CI build runs automatically on push to android/ via GitHub Actions
+:: Artifact: babylon-v2.0.0-{sha}
 ```
 
 ### Health Checks
