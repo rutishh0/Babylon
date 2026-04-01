@@ -11,3 +11,6 @@ ingest/venv/
 ingest/status.json
 
 .vercel
+
+# Skill files (not part of the project)
+skill to be added/

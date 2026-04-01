@@ -1,82 +1,123 @@
 package com.babylon.app.ui.discover
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.runtime.*
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
-import coil.compose.AsyncImage
-import com.babylon.app.data.model.JikanSearchResult
-import com.babylon.app.ui.theme.BabylonBackground
+import com.babylon.app.navigation.SearchRoute
+import com.babylon.app.ui.theme.BabylonBlack
+import com.babylon.app.ui.theme.BabylonCard
+import com.babylon.app.ui.theme.BabylonSurfaceVariant
+import com.babylon.app.ui.theme.BabylonTextMuted
+import com.babylon.app.ui.theme.BabylonWhite
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DiscoverScreen(
     navController: NavController,
-    viewModel: DiscoverViewModel = hiltViewModel()
+    viewModel: DiscoverViewModel = hiltViewModel(),
 ) {
-    val state by viewModel.state.collectAsState()
-
     Column(
-        Modifier
+        modifier = Modifier
             .fillMaxSize()
-            .background(BabylonBackground)
-            .padding(horizontal = 16.dp)
+            .background(BabylonBlack),
     ) {
-        Spacer(Modifier.height(8.dp))
-
-        Text(
-            "Discover",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-
-        Spacer(Modifier.height(8.dp))
-
-        // Search bar
-        SearchBar(
-            query          = state.query,
-            onQueryChange  = viewModel::onQueryChange,
-            onSearch       = {},
-            active         = false,
-            onActiveChange = {},
-            placeholder    = { Text("Search anime to add\u2026") },
-            modifier       = Modifier.fillMaxWidth()
-        ) {}
-
-        Spacer(Modifier.height(8.dp))
-
-        if (state.loading) {
-            LinearProgressIndicator(Modifier.fillMaxWidth())
-        }
-
-        state.error?.let {
-            Text(it, color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodySmall)
-        }
-
-        LazyColumn(
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.fillMaxSize()
+        // ── Header ──
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically,
         ) {
-            items(state.results, key = { it.malId }) { result ->
-                DiscoverResultRow(
-                    result    = result,
-                    queued    = result.title in state.queuedTitles,
-                    onQueue   = { viewModel.queueDownload(result.title) }
+            Text(
+                text = "Discover",
+                color = BabylonWhite,
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.weight(1f),
+            )
+            Icon(
+                imageVector = Icons.Default.Search,
+                contentDescription = "Search",
+                tint = BabylonWhite,
+                modifier = Modifier
+                    .size(28.dp)
+                    .clickable { navController.navigate(SearchRoute()) },
+            )
+        }
+
+        // ── Tappable Search Bar ──
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp)
+                .clickable { navController.navigate(SearchRoute()) },
+            shape = RoundedCornerShape(12.dp),
+            colors = CardDefaults.cardColors(containerColor = BabylonCard),
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Search,
+                    contentDescription = null,
+                    tint = BabylonTextMuted,
+                    modifier = Modifier.size(20.dp),
+                )
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    text = "Search anime...",
+                    color = BabylonTextMuted,
+                    style = MaterialTheme.typography.bodyLarge,
+                )
+            }
+        }
+
+        Spacer(Modifier.height(16.dp))
+
+        // ── Genre Grid ──
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            items(viewModel.genres) { genre ->
+                GenreCard(
+                    genre = genre,
+                    onClick = { navController.navigate(SearchRoute(initialQuery = genre)) },
                 )
             }
         }
@@ -84,79 +125,26 @@ fun DiscoverScreen(
 }
 
 @Composable
-private fun DiscoverResultRow(
-    result: JikanSearchResult,
-    queued: Boolean,
-    onQueue: () -> Unit
+private fun GenreCard(
+    genre: String,
+    onClick: () -> Unit,
 ) {
-    Row(
-        Modifier
+    Box(
+        modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(8.dp))
-            .padding(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .height(160.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(BabylonSurfaceVariant)
+            .clickable(onClick = onClick),
+        contentAlignment = Alignment.Center,
     ) {
-        // Thumbnail
-        if (result.imageUrl != null) {
-            AsyncImage(
-                model             = result.imageUrl,
-                contentDescription = result.title,
-                contentScale      = ContentScale.Crop,
-                modifier          = Modifier
-                    .size(60.dp, 85.dp)
-                    .clip(RoundedCornerShape(4.dp))
-            )
-        } else {
-            Box(
-                Modifier
-                    .size(60.dp, 85.dp)
-                    .clip(RoundedCornerShape(4.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
-            )
-        }
-
-        Spacer(Modifier.width(12.dp))
-
-        Column(Modifier.weight(1f)) {
-            Text(
-                result.title,
-                style    = MaterialTheme.typography.bodyMedium,
-                color    = Color.White,
-                maxLines = 2
-            )
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 4.dp)
-            ) {
-                result.year?.let {
-                    Text("$it", style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFF9E9E9E))
-                }
-                result.score?.let {
-                    Text("★ ${"%.1f".format(it)}", style = MaterialTheme.typography.labelSmall,
-                        color = Color(0xFFFFD700))
-                }
-            }
-            result.synopsis?.let {
-                Text(
-                    it,
-                    style    = MaterialTheme.typography.bodySmall,
-                    color    = Color(0xFF9E9E9E),
-                    maxLines = 2,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
-            }
-        }
-
-        Spacer(Modifier.width(8.dp))
-
-        // Queue button
-        IconButton(onClick = onQueue, enabled = !queued) {
-            Icon(
-                if (queued) Icons.Filled.Check else Icons.Filled.Add,
-                contentDescription = if (queued) "Queued" else "Add to Babylon",
-                tint = if (queued) MaterialTheme.colorScheme.primary else Color.White
-            )
-        }
+        Text(
+            text = genre.uppercase(),
+            color = BabylonWhite,
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.padding(12.dp),
+        )
     }
 }

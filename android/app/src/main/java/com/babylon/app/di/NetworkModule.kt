@@ -1,65 +1,54 @@
 package com.babylon.app.di
 
-import com.babylon.app.BuildConfig
-import com.babylon.app.data.api.BabylonApiService
-import com.babylon.app.data.api.PinInterceptor
+import com.babylon.app.data.api.BabylonApi
+import com.babylon.app.data.api.DynamicBaseUrlInterceptor
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
 import dagger.hilt.components.SingletonComponent
+import kotlinx.serialization.json.Json
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import java.util.concurrent.TimeUnit
-import javax.inject.Named
 import javax.inject.Singleton
 
 @Module
 @InstallIn(SingletonComponent::class)
 object NetworkModule {
 
-    /**
-     * The PIN is read from BuildConfig (injected from GitHub Actions secret or local.properties).
-     * Default is empty string = no PIN.
-     */
-    @Provides
-    @Named("babylonPin")
-    fun providePin(): String = try {
-        BuildConfig::class.java.getField("BABYLON_PIN").get(null) as? String ?: ""
-    } catch (_: Exception) { "" }
-
     @Provides
     @Singleton
-    fun provideOkHttpClient(pinInterceptor: PinInterceptor): OkHttpClient {
-        return OkHttpClient.Builder()
-            .addInterceptor(pinInterceptor)
-            .addInterceptor(
-                HttpLoggingInterceptor().apply {
-                    level = if (BuildConfig.DEBUG)
-                        HttpLoggingInterceptor.Level.BASIC
-                    else
-                        HttpLoggingInterceptor.Level.NONE
-                }
-            )
-            .connectTimeout(30, TimeUnit.SECONDS)
-            .readTimeout(30, TimeUnit.SECONDS)
-            // Stream requests need longer timeout for large video responses
-            .writeTimeout(60, TimeUnit.SECONDS)
-            .build()
+    fun provideJson(): Json = Json {
+        ignoreUnknownKeys = true
+        coerceInputValues = true
+        isLenient = true
     }
 
     @Provides
     @Singleton
-    fun provideRetrofit(client: OkHttpClient): Retrofit =
-        Retrofit.Builder()
-            .baseUrl(BuildConfig.API_BASE_URL.trimEnd('/') + "/")
-            .client(client)
-            .addConverterFactory(GsonConverterFactory.create())
-            .build()
+    fun provideOkHttpClient(
+        dynamicBaseUrlInterceptor: DynamicBaseUrlInterceptor,
+    ): OkHttpClient = OkHttpClient.Builder()
+        .addInterceptor(dynamicBaseUrlInterceptor)
+        .addInterceptor(HttpLoggingInterceptor().apply {
+            level = HttpLoggingInterceptor.Level.BASIC
+        })
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(60, TimeUnit.SECONDS)
+        .build()
 
     @Provides
     @Singleton
-    fun provideApiService(retrofit: Retrofit): BabylonApiService =
-        retrofit.create(BabylonApiService::class.java)
+    fun provideRetrofit(okHttpClient: OkHttpClient, json: Json): Retrofit = Retrofit.Builder()
+        .baseUrl("http://placeholder.local/")
+        .client(okHttpClient)
+        .addConverterFactory(json.asConverterFactory("application/json".toMediaType()))
+        .build()
+
+    @Provides
+    @Singleton
+    fun provideBabylonApi(retrofit: Retrofit): BabylonApi = retrofit.create(BabylonApi::class.java)
 }

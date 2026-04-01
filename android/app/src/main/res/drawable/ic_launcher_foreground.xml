@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Bold "B" letter in Babylon orange -->
+    <path
+        android:fillColor="#FFF47521"
+        android:pathData="M36,28 L36,80 L56,80
+            Q66,80 71,75 Q76,70 76,63
+            Q76,57 72.5,53 Q69,49 63,48
+            L63,47.5
+            Q68,46.5 71,43 Q74,39.5 74,34.5
+            Q74,28.5 69.5,25.5 Q65,23 57,23
+            L36,23 Z
+            M46,32 L55,32
+            Q60,32 62.5,34 Q65,36 65,40
+            Q65,44 62.5,46 Q60,48 55,48
+            L46,48 Z
+            M46,56 L56,56
+            Q62,56 64.5,58.5 Q67,61 67,65
+            Q67,69 64.5,71.5 Q62,74 56,74
+            L46,74 Z" />
+</vector>

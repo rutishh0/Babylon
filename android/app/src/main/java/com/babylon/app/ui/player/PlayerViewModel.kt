@@ -1,85 +1,105 @@
 package com.babylon.app.ui.player
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.babylon.app.data.repository.BabylonRepository
-import com.babylon.app.data.repository.Result
+import com.babylon.app.data.local.entity.WatchHistoryEntity
+import com.babylon.app.data.repository.AnimeRepository
+import com.babylon.app.data.repository.HistoryRepository
+import com.babylon.app.data.repository.LibraryRepository
+import com.babylon.app.data.datastore.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class PlayerUiState(
-    val streamUrl: String?   = null,
-    val resumePosition: Long = 0L,    // milliseconds
-    val loading: Boolean     = true,
-    val error: String?       = null
+    val animeId: String = "",
+    val episodeNumber: Int = 1,
+    val language: String = "sub",
+    val title: String = "",
+    val streamUrl: String? = null,
+    val referer: String? = null,
+    val isOffline: Boolean = false,
+    val isLoading: Boolean = true,
+    val error: String? = null,
 )
 
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
-    private val repository: BabylonRepository
+    savedStateHandle: SavedStateHandle,
+    private val libraryRepository: LibraryRepository,
+    private val animeRepository: AnimeRepository,
+    private val historyRepository: HistoryRepository,
+    private val settingsDataStore: SettingsDataStore,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(PlayerUiState())
-    val state: StateFlow<PlayerUiState> = _state.asStateFlow()
+    private val animeId: String = savedStateHandle["animeId"] ?: ""
+    private val episodeNumber: Int = savedStateHandle["episodeNumber"] ?: 1
+    private val language: String = savedStateHandle["language"] ?: "sub"
+    private val isOffline: Boolean = savedStateHandle["isOffline"] ?: false
+    private val offlinePath: String? = savedStateHandle["offlinePath"]
 
-    private var progressJob: Job? = null
-    private var currentMediaId: String? = null
-    private var currentEpisodeId: String? = null
-    private var durationMs: Long = 0L
+    private val _uiState = MutableStateFlow(
+        PlayerUiState(animeId = animeId, episodeNumber = episodeNumber, language = language, isOffline = isOffline)
+    )
+    val uiState: StateFlow<PlayerUiState> = _uiState.asStateFlow()
 
-    fun load(mediaId: String, episodeId: String?) {
-        currentMediaId  = mediaId
-        currentEpisodeId = episodeId
+    init {
+        resolveStreamUrl()
+    }
+
+    private fun resolveStreamUrl() {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-
-            // Fetch saved position from local cache
-            val savedProgress = repository.getLocalProgress(mediaId, episodeId)
-            val resumeMs = ((savedProgress?.positionSeconds ?: 0.0) * 1000).toLong()
-
-            when (val result = repository.getStreamUrl(mediaId, episodeId)) {
-                is Result.Success -> _state.update {
-                    it.copy(loading = false, streamUrl = result.data, resumePosition = resumeMs)
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            try {
+                if (isOffline && offlinePath != null) {
+                    _uiState.update { it.copy(streamUrl = offlinePath, isLoading = false) }
+                    return@launch
                 }
-                is Result.Error -> _state.update {
-                    it.copy(loading = false, error = result.message)
+                // Try library stream first (already downloaded on server)
+                val libraryUrl = libraryRepository.buildStreamUrl(animeId, episodeNumber)
+                // Verify the anime exists in library
+                val detail = libraryRepository.getDetail(animeId).getOrNull()
+                val episodeOnServer = detail?.episodes?.any { it.episodeNumber.toInt() == episodeNumber } == true
+
+                if (episodeOnServer) {
+                    _uiState.update { it.copy(
+                        streamUrl = libraryUrl,
+                        title = "${detail?.title ?: ""} - Episode $episodeNumber",
+                        isLoading = false,
+                    )}
+                } else {
+                    // Fall back to AllAnime stream
+                    val quality = settingsDataStore.defaultQuality.first()
+                    val stream = animeRepository.getStream(animeId, episodeNumber, language, quality).getOrThrow()
+                    _uiState.update { it.copy(
+                        streamUrl = stream.url,
+                        referer = stream.referer,
+                        title = "Episode $episodeNumber",
+                        isLoading = false,
+                    )}
                 }
+            } catch (e: Exception) {
+                _uiState.update { it.copy(isLoading = false, error = e.message ?: "Failed to load stream") }
             }
         }
     }
 
-    fun onDurationKnown(durationMs: Long) {
-        this.durationMs = durationMs
-    }
-
-    /** Start auto-saving progress every 10 seconds. Call when playback begins. */
-    fun startProgressAutoSave(getCurrentPositionMs: () -> Long) {
-        progressJob?.cancel()
-        progressJob = viewModelScope.launch {
-            while (isActive) {
-                delay(10_000)
-                saveProgress(getCurrentPositionMs())
-            }
+    fun saveProgress(positionMs: Long, durationMs: Long) {
+        if (positionMs <= 0 || durationMs <= 0) return
+        viewModelScope.launch {
+            historyRepository.upsert(
+                WatchHistoryEntity(
+                    animeId = animeId,
+                    episodeNumber = episodeNumber,
+                    animeTitle = _uiState.value.title.substringBefore(" - ").ifEmpty { animeId },
+                    coverUrl = null,
+                    positionMs = positionMs,
+                    durationMs = durationMs,
+                    completed = positionMs.toFloat() / durationMs > 0.9f,
+                )
+            )
         }
-    }
-
-    /** Save progress manually (call on pause/stop/PiP transition). */
-    fun saveProgressNow(positionMs: Long) {
-        viewModelScope.launch { saveProgress(positionMs) }
-    }
-
-    private suspend fun saveProgress(positionMs: Long) {
-        val mediaId   = currentMediaId  ?: return
-        val positionS = positionMs / 1000.0
-        val durationS = durationMs / 1000.0
-        if (durationS <= 0) return
-        repository.saveProgress(mediaId, currentEpisodeId, positionS, durationS)
-    }
-
-    override fun onCleared() {
-        progressJob?.cancel()
-        super.onCleared()
     }
 }

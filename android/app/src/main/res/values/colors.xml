@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="babylon_black">#FF000000</color>
+    <color name="babylon_orange">#FFF47521</color>
+    <color name="babylon_surface">#FF1A1A1A</color>
+</resources>

@@ -2,41 +2,50 @@ package com.babylon.app.ui.home
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.babylon.app.data.model.HomeScreenResponse
-import com.babylon.app.data.repository.BabylonRepository
-import com.babylon.app.data.repository.Result
+import com.babylon.app.data.api.dto.LibraryItemDto
+import com.babylon.app.data.local.entity.WatchHistoryEntity
+import com.babylon.app.data.repository.HistoryRepository
+import com.babylon.app.data.repository.LibraryRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class HomeUiState(
-    val loading: Boolean          = true,
-    val data: HomeScreenResponse? = null,
-    val error: String?            = null
+    val isLoading: Boolean = true,
+    val error: String? = null,
+    val library: List<LibraryItemDto> = emptyList(),
+    val continueWatching: List<WatchHistoryEntity> = emptyList(),
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
-    private val repository: BabylonRepository
+    private val libraryRepository: LibraryRepository,
+    private val historyRepository: HistoryRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(HomeUiState())
-    val state: StateFlow<HomeUiState> = _state.asStateFlow()
+    private val _uiState = MutableStateFlow(HomeUiState())
+    val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
-    init { refresh() }
-
-    fun refresh() {
+    init {
+        loadLibrary()
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
-            when (val result = repository.getHomeScreen()) {
-                is Result.Success -> _state.update {
-                    it.copy(loading = false, data = result.data)
-                }
-                is Result.Error   -> _state.update {
-                    it.copy(loading = false, error = result.message)
-                }
+            historyRepository.observeRecent(10).collect { history ->
+                _uiState.update { it.copy(continueWatching = history.filter { h -> !h.completed }) }
             }
+        }
+    }
+
+    fun loadLibrary() {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true, error = null) }
+            libraryRepository.getLibrary()
+                .onSuccess { library ->
+                    _uiState.update { it.copy(isLoading = false, library = library) }
+                }
+                .onFailure { e ->
+                    _uiState.update { it.copy(isLoading = false, error = e.message ?: "Failed to load library") }
+                }
         }
     }
 }

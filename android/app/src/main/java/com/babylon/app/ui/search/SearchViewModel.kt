@@ -1,60 +1,69 @@
 package com.babylon.app.ui.search
 
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.babylon.app.data.model.MediaResponse
-import com.babylon.app.data.repository.BabylonRepository
-import com.babylon.app.data.repository.Result
+import com.babylon.app.data.api.dto.SearchResultDto
+import com.babylon.app.data.repository.AnimeRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
-import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class SearchUiState(
-    val query: String               = "",
-    val selectedType: String?       = null,   // null = All
-    val results: List<MediaResponse> = emptyList(),
-    val loading: Boolean            = false,
-    val error: String?              = null
+    val query: String = "",
+    val results: List<SearchResultDto> = emptyList(),
+    val isLoading: Boolean = false,
+    val hasSearched: Boolean = false,
 )
 
 @HiltViewModel
 class SearchViewModel @Inject constructor(
-    private val repository: BabylonRepository
+    savedStateHandle: SavedStateHandle,
+    private val animeRepository: AnimeRepository,
 ) : ViewModel() {
 
-    private val _state = MutableStateFlow(SearchUiState())
-    val state: StateFlow<SearchUiState> = _state.asStateFlow()
+    private val initialQuery: String = savedStateHandle["initialQuery"] ?: ""
+
+    private val _uiState = MutableStateFlow(SearchUiState(query = initialQuery))
+    val uiState: StateFlow<SearchUiState> = _uiState.asStateFlow()
 
     private var searchJob: Job? = null
 
     init {
-        // Load full library on open
-        search("", null)
-    }
-
-    fun onQueryChange(query: String) {
-        _state.update { it.copy(query = query) }
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            delay(300)   // debounce 300ms
-            search(query, _state.value.selectedType)
+        if (initialQuery.isNotBlank()) {
+            search(initialQuery)
         }
     }
 
-    fun onTypeFilter(type: String?) {
-        _state.update { it.copy(selectedType = type) }
-        search(_state.value.query, type)
+    fun onQueryChange(query: String) {
+        _uiState.update { it.copy(query = query) }
+        searchJob?.cancel()
+        if (query.length < 2) {
+            _uiState.update { it.copy(results = emptyList(), hasSearched = false) }
+            return
+        }
+        searchJob = viewModelScope.launch {
+            delay(400) // debounce
+            search(query)
+        }
     }
 
-    private fun search(query: String, type: String?) {
-        searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            _state.update { it.copy(loading = true) }
-            when (val result = repository.searchMedia(query.takeIf { it.isNotBlank() }, type)) {
-                is Result.Success -> _state.update { it.copy(loading = false, results = result.data) }
-                is Result.Error   -> _state.update { it.copy(loading = false, error = result.message) }
-            }
+    private fun search(query: String) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(isLoading = true) }
+            animeRepository.search(query)
+                .onSuccess { results ->
+                    _uiState.update { it.copy(results = results, isLoading = false, hasSearched = true) }
+                }
+                .onFailure {
+                    _uiState.update { it.copy(results = emptyList(), isLoading = false, hasSearched = true) }
+                }
         }
     }
 }

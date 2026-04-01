@@ -1,28 +1,34 @@
 package com.babylon.app.navigation
 
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.*
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.Icon
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavDestination.Companion.hierarchy
+import androidx.compose.ui.graphics.Color
+import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.compose.*
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
 import com.babylon.app.ui.detail.DetailScreen
 import com.babylon.app.ui.discover.DiscoverScreen
 import com.babylon.app.ui.home.HomeScreen
-import com.babylon.app.ui.ingest.IngestScreen
+import com.babylon.app.ui.mylists.MyListsScreen
 import com.babylon.app.ui.player.PlayerScreen
+import com.babylon.app.ui.queue.QueueScreen
 import com.babylon.app.ui.search.SearchScreen
-import com.babylon.app.ui.upload.UploadScreen
-
-private val bottomNavItems = listOf(
-    Triple(Screen.Home,     Icons.Filled.Home,    "Home"),
-    Triple(Screen.Search,   Icons.Filled.Search,  "Search"),
-    Triple(Screen.Library,  Icons.Filled.VideoLibrary, "Library"),
-    Triple(Screen.Discover, Icons.Filled.Explore, "Discover"),
-)
+import com.babylon.app.ui.settings.SettingsScreen
+import com.babylon.app.ui.theme.BabylonBlack
+import com.babylon.app.ui.theme.BabylonCard
+import com.babylon.app.ui.theme.BabylonOrange
+import com.babylon.app.ui.theme.BabylonTextMuted
 
 @Composable
 fun BabylonNavHost() {
@@ -30,68 +36,92 @@ fun BabylonNavHost() {
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentDestination = navBackStackEntry?.destination
 
-    // Hide bottom bar on player screen (full-screen)
-    val showBottomBar = currentDestination?.route?.startsWith("player") == false
+    // Hide bottom bar on player screen
+    val showBottomBar = currentDestination?.hasRoute<PlayerRoute>() != true
 
     Scaffold(
+        containerColor = BabylonBlack,
         bottomBar = {
             if (showBottomBar) {
-                NavigationBar(containerColor = androidx.compose.ui.graphics.Color(0xFF141414)) {
-                    bottomNavItems.forEach { (screen, icon, label) ->
+                NavigationBar(
+                    containerColor = BabylonCard,
+                    contentColor = BabylonOrange,
+                ) {
+                    TopLevelDestination.entries.forEach { destination ->
+                        val route = when (destination) {
+                            TopLevelDestination.HOME -> HomeRoute
+                            TopLevelDestination.MY_LISTS -> MyListsRoute
+                            TopLevelDestination.DISCOVER -> DiscoverRoute
+                            TopLevelDestination.QUEUE -> QueueRoute
+                            TopLevelDestination.SETTINGS -> SettingsRoute
+                        }
+                        val selected = when (destination) {
+                            TopLevelDestination.HOME -> currentDestination?.hasRoute<HomeRoute>() == true
+                            TopLevelDestination.MY_LISTS -> currentDestination?.hasRoute<MyListsRoute>() == true
+                            TopLevelDestination.DISCOVER -> currentDestination?.hasRoute<DiscoverRoute>() == true
+                            TopLevelDestination.QUEUE -> currentDestination?.hasRoute<QueueRoute>() == true
+                            TopLevelDestination.SETTINGS -> currentDestination?.hasRoute<SettingsRoute>() == true
+                        }
+
                         NavigationBarItem(
-                            icon  = { Icon(icon, contentDescription = label) },
-                            label = { Text(label) },
-                            selected = currentDestination?.hierarchy?.any {
-                                it.route == screen.route
-                            } == true,
+                            selected = selected,
                             onClick = {
-                                navController.navigate(screen.route) {
+                                navController.navigate(route) {
                                     popUpTo(navController.graph.findStartDestination().id) {
                                         saveState = true
                                     }
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            icon = {
+                                Icon(
+                                    imageVector = if (selected) destination.selectedIcon else destination.unselectedIcon,
+                                    contentDescription = destination.label,
+                                )
+                            },
+                            label = { Text(destination.label) },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = BabylonOrange,
+                                selectedTextColor = BabylonOrange,
+                                unselectedIconColor = BabylonTextMuted,
+                                unselectedTextColor = BabylonTextMuted,
+                                indicatorColor = Color.Transparent,
+                            ),
                         )
                     }
                 }
             }
-        }
+        },
     ) { innerPadding ->
         NavHost(
-            navController    = navController,
-            startDestination = Screen.Home.route,
-            modifier         = Modifier.padding(innerPadding)
+            navController = navController,
+            startDestination = HomeRoute,
+            modifier = Modifier.padding(innerPadding),
         ) {
-            composable(Screen.Home.route)    { HomeScreen(navController) }
-            composable(Screen.Search.route)  { SearchScreen(navController) }
-            composable(Screen.Library.route) {
-                // Library reuses the search screen with no active query
-                SearchScreen(navController, initialType = null)
+            composable<HomeRoute> {
+                HomeScreen(navController = navController)
             }
-            composable(Screen.Discover.route) { DiscoverScreen(navController) }
-            composable(Screen.Upload.route)   { UploadScreen(navController) }
-            composable(Screen.Ingest.route)   { IngestScreen(navController) }
-
-            composable(Screen.Detail.ROUTE) { backStackEntry ->
-                val mediaId = backStackEntry.arguments?.getString("mediaId") ?: return@composable
-                DetailScreen(navController, mediaId)
+            composable<MyListsRoute> {
+                MyListsScreen(navController = navController)
             }
-            composable(
-                route     = Screen.Player.ROUTE,
-                arguments = listOf(
-                    androidx.navigation.navArgument("mediaId")  { type = androidx.navigation.NavType.StringType },
-                    androidx.navigation.navArgument("episodeId") {
-                        type = androidx.navigation.NavType.StringType
-                        nullable = true
-                        defaultValue = null
-                    }
-                )
-            ) { backStackEntry ->
-                val mediaId   = backStackEntry.arguments?.getString("mediaId") ?: return@composable
-                val episodeId = backStackEntry.arguments?.getString("episodeId")
-                PlayerScreen(navController, mediaId, episodeId)
+            composable<DiscoverRoute> {
+                DiscoverScreen(navController = navController)
+            }
+            composable<QueueRoute> {
+                QueueScreen()
+            }
+            composable<SettingsRoute> {
+                SettingsScreen()
+            }
+            composable<SearchRoute> {
+                SearchScreen(navController = navController)
+            }
+            composable<DetailRoute> {
+                DetailScreen(navController = navController)
+            }
+            composable<PlayerRoute> {
+                PlayerScreen(navController = navController)
             }
         }
     }

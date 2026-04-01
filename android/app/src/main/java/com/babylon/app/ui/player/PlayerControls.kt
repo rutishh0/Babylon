@@ -1,153 +1,188 @@
 package com.babylon.app.ui.player
 
+import androidx.compose.animation.*
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.media3.exoplayer.ExoPlayer
-import com.babylon.app.ui.theme.BabylonAccent
+import com.babylon.app.ui.theme.BabylonOrange
+import com.babylon.app.ui.theme.BabylonWhite
+import com.babylon.app.util.formatDuration
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.isActive
 
-/**
- * Custom overlay with play/pause, seek bar, time display, playback speed, and PiP button.
- * The seek bar uses ExoPlayer's current position polled via a coroutine.
- */
 @Composable
 fun PlayerControls(
-    player: ExoPlayer,
-    onEnterPip: () -> Unit,
-    modifier: Modifier = Modifier
+    isPlaying: Boolean,
+    currentPositionMs: Long,
+    durationMs: Long,
+    title: String,
+    modifier: Modifier = Modifier,
+    onPlayPause: () -> Unit = {},
+    onSeek: (Long) -> Unit = {},
+    onSeekForward: () -> Unit = {},
+    onSeekBack: () -> Unit = {},
+    onBack: () -> Unit = {},
+    onPipClick: () -> Unit = {},
 ) {
-    var isPlaying    by remember { mutableStateOf(player.isPlaying) }
-    var position     by remember { mutableFloatStateOf(0f) }
-    var duration     by remember { mutableFloatStateOf(1f) }
-    var speedIndex   by remember { mutableIntStateOf(1) }   // index into speeds list
-    val speeds       = listOf(0.5f, 1.0f, 1.25f, 1.5f, 2.0f)
+    var visible by remember { mutableStateOf(true) }
+    var lastInteraction by remember { mutableLongStateOf(System.currentTimeMillis()) }
 
-    // Poll position every 500ms
-    LaunchedEffect(player) {
-        while (isActive) {
-            isPlaying = player.isPlaying
-            position  = player.currentPosition.toFloat()
-            duration  = maxOf(1f, player.duration.toFloat())
-            delay(500)
+    // Auto-hide after 3 seconds
+    LaunchedEffect(lastInteraction, isPlaying) {
+        if (isPlaying) {
+            delay(3000)
+            visible = false
         }
     }
 
     Box(
-        modifier.background(Color(0x88000000))
+        modifier = modifier
+            .fillMaxSize()
+            .clickable(
+                indication = null,
+                interactionSource = remember { MutableInteractionSource() },
+            ) {
+                visible = !visible
+                lastInteraction = System.currentTimeMillis()
+            },
     ) {
-        // Bottom controls bar
-        Column(
-            Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp)
+        AnimatedVisibility(
+            visible = visible,
+            enter = fadeIn(),
+            exit = fadeOut(),
         ) {
-            // Seek bar
-            Slider(
-                value         = position / duration,
-                onValueChange = { fraction ->
-                    player.seekTo((fraction * duration).toLong())
-                    position = fraction * duration
-                },
-                colors = SliderDefaults.colors(
-                    thumbColor       = BabylonAccent,
-                    activeTrackColor = BabylonAccent
-                )
-            )
-
-            // Time display
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.5f))
             ) {
-                Text(
-                    formatMs(position.toLong()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White
-                )
-                Text(
-                    formatMs(duration.toLong()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = Color.White
-                )
-            }
-        }
-
-        // Centre controls: play/pause + speed
-        Row(
-            Modifier.align(Alignment.Center),
-            horizontalArrangement = Arrangement.spacedBy(24.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = {
-                player.seekTo(maxOf(0, player.currentPosition - 10_000))
-            }) {
-                Icon(Icons.Filled.Replay10, "Rewind 10s", tint = Color.White,
-                    modifier = Modifier.size(36.dp))
-            }
-
-            IconButton(
-                onClick = {
-                    if (player.isPlaying) player.pause() else player.play()
-                    isPlaying = !isPlaying
-                },
-                modifier = Modifier.size(56.dp)
-            ) {
-                Icon(
-                    if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    "Play/Pause",
-                    tint     = Color.White,
-                    modifier = Modifier.size(48.dp)
-                )
-            }
-
-            IconButton(onClick = {
-                val nextPos = (player.currentPosition + 10_000).coerceAtMost(player.duration)
-                player.seekTo(nextPos)
-            }) {
-                Icon(Icons.Filled.Forward10, "Forward 10s", tint = Color.White,
-                    modifier = Modifier.size(36.dp))
-            }
-        }
-
-        // Top-right: speed + PiP
-        Row(
-            Modifier
-                .align(Alignment.TopEnd)
-                .padding(8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            TextButton(
-                onClick = {
-                    speedIndex = (speedIndex + 1) % speeds.size
-                    player.setPlaybackSpeed(speeds[speedIndex])
+                // Top bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .align(Alignment.TopCenter)
+                        .statusBarsPadding()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = BabylonWhite,
+                        )
+                    }
+                    Text(
+                        text = title,
+                        color = BabylonWhite,
+                        style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(horizontal = 8.dp),
+                    )
+                    IconButton(onClick = onPipClick) {
+                        Icon(
+                            Icons.Default.PictureInPicture,
+                            contentDescription = "Picture in Picture",
+                            tint = BabylonWhite,
+                        )
+                    }
                 }
-            ) {
-                Text("${speeds[speedIndex]}x", color = Color.White,
-                    style = MaterialTheme.typography.labelMedium)
-            }
 
-            IconButton(onClick = onEnterPip) {
-                Icon(Icons.Filled.PictureInPicture, "PiP", tint = Color.White)
+                // Center controls
+                Row(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalArrangement = Arrangement.spacedBy(32.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    IconButton(
+                        onClick = {
+                            onSeekBack()
+                            lastInteraction = System.currentTimeMillis()
+                        },
+                    ) {
+                        Icon(
+                            Icons.Default.Replay10,
+                            contentDescription = "Rewind 10 seconds",
+                            tint = BabylonWhite,
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            onPlayPause()
+                            lastInteraction = System.currentTimeMillis()
+                        },
+                        modifier = Modifier.size(64.dp),
+                    ) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = BabylonWhite,
+                            modifier = Modifier.size(56.dp),
+                        )
+                    }
+                    IconButton(
+                        onClick = {
+                            onSeekForward()
+                            lastInteraction = System.currentTimeMillis()
+                        },
+                    ) {
+                        Icon(
+                            Icons.Default.Forward10,
+                            contentDescription = "Forward 10 seconds",
+                            tint = BabylonWhite,
+                            modifier = Modifier.size(40.dp),
+                        )
+                    }
+                }
+
+                // Bottom: seek bar + time
+                Column(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 8.dp),
+                ) {
+                    Slider(
+                        value = if (durationMs > 0) currentPositionMs.toFloat() / durationMs else 0f,
+                        onValueChange = { fraction ->
+                            onSeek((fraction * durationMs).toLong())
+                            lastInteraction = System.currentTimeMillis()
+                        },
+                        colors = SliderDefaults.colors(
+                            thumbColor = BabylonOrange,
+                            activeTrackColor = BabylonOrange,
+                            inactiveTrackColor = Color.White.copy(alpha = 0.3f),
+                        ),
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                    ) {
+                        Text(
+                            text = currentPositionMs.formatDuration(),
+                            color = BabylonWhite,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                        Text(
+                            text = durationMs.formatDuration(),
+                            color = BabylonWhite,
+                            style = MaterialTheme.typography.labelSmall,
+                        )
+                    }
+                }
             }
         }
     }
-}
-
-private fun formatMs(ms: Long): String {
-    val totalSeconds = ms / 1000
-    val hours        = totalSeconds / 3600
-    val minutes      = (totalSeconds % 3600) / 60
-    val seconds      = totalSeconds % 60
-    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
-    else "%d:%02d".format(minutes, seconds)
 }

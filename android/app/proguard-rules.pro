@@ -2,32 +2,52 @@
 # By default, the flags in this file are appended to flags specified
 # in the default proguard-android-optimize.txt file.
 
-# Keep Retrofit service interfaces
+# ---- Retrofit ----
 -keep,allowobfuscation,allowshrinking interface retrofit2.Call
 -keep,allowobfuscation,allowshrinking class retrofit2.Response
 -keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
 
-# Keep Gson data classes
--keepattributes Signature
--keepattributes *Annotation*
--dontwarn sun.misc.**
--keep class com.google.gson.** { *; }
--keep class com.babylon.app.data.model.** { *; }
+# ---- Kotlinx Serialization ----
+-keepattributes *Annotation*, InnerClasses
+-dontnote kotlinx.serialization.AnnotationsKt
 
-# Keep Room generated code
+-keepclassmembers @kotlinx.serialization.Serializable class ** {
+    *** Companion;
+}
+
+-if @kotlinx.serialization.Serializable class **
+-keepclassmembers class <1>$Companion {
+    kotlinx.serialization.KSerializer serializer(...);
+}
+
+-if @kotlinx.serialization.Serializable class ** {
+    static **$* *;
+}
+-keepnames class <2>
+
+-keepclassmembers class kotlinx.serialization.json.** {
+    *** Companion;
+}
+
+# ---- Room ----
 -keep class * extends androidx.room.RoomDatabase
 -keep @androidx.room.Entity class *
 -dontwarn androidx.room.paging.**
 
-# Keep Hilt generated code
+# ---- Hilt ----
 -keep class dagger.hilt.** { *; }
 -keep class javax.inject.** { *; }
 -keep @dagger.hilt.android.lifecycle.HiltViewModel class * { *; }
 
-# ExoPlayer
+# ---- ExoPlayer / Media3 ----
 -keep class androidx.media3.** { *; }
 -dontwarn androidx.media3.**
 
-# Coil
--keep class coil.** { *; }
--dontwarn coil.**
+# ---- Coil 3 ----
+-keep class coil3.** { *; }
+-dontwarn coil3.**
+
+# ---- OkHttp ----
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
