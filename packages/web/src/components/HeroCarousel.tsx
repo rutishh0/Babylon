@@ -20,9 +20,11 @@ export interface HeroAnime {
 
 interface HeroCarouselProps {
   anime: HeroAnime[]
+  linkBuilder?: (anime: HeroAnime) => string
+  ctaLabel?: string
 }
 
-export default function HeroCarousel({ anime }: HeroCarouselProps) {
+export default function HeroCarousel({ anime, linkBuilder, ctaLabel }: HeroCarouselProps) {
   const [currentIndex, setCurrentIndex] = useState(0)
   const [isAutoPlaying, setIsAutoPlaying] = useState(true)
 
@@ -151,12 +153,12 @@ export default function HeroCarousel({ anime }: HeroCarouselProps) {
 
         {/* Action Buttons */}
         <div className="flex items-center gap-3">
-          <Link href={`/anime/${current.id}`}>
+          <Link href={linkBuilder ? linkBuilder(current) : `/anime/${current.id}`}>
             <Button
               className="bg-[#F47521] hover:bg-[#e06515] text-white font-semibold px-5 py-2.5 h-auto rounded-sm flex items-center gap-2 text-sm cursor-pointer"
             >
               <Play className="w-4 h-4 fill-white" />
-              START WATCHING
+              {ctaLabel || 'START WATCHING'}
             </Button>
           </Link>
           <Button

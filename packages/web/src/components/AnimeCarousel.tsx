@@ -18,9 +18,10 @@ interface CarouselAnime {
 interface AnimeCarouselProps {
   title: string;
   anime: CarouselAnime[];
+  onItemClick?: (anime: CarouselAnime) => void;
 }
 
-export default function AnimeCarousel({ title, anime }: AnimeCarouselProps) {
+export default function AnimeCarousel({ title, anime, onItemClick }: AnimeCarouselProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [showRightArrow, setShowRightArrow] = useState(true);
   const [isHovering, setIsHovering] = useState(false);
@@ -78,7 +79,12 @@ export default function AnimeCarousel({ title, anime }: AnimeCarouselProps) {
           }}
         >
           {anime.map((item) => (
-            <AnimeCard key={item.id} anime={item} variant="carousel" />
+            <AnimeCard
+              key={item.id}
+              anime={item}
+              variant="carousel"
+              onClick={onItemClick ? () => onItemClick(item) : undefined}
+            />
           ))}
         </div>
 

@@ -18,6 +18,7 @@ from babylon_anime import search as anime_search, get_episodes, get_stream, get_
 from babylon_anime.models import LanguageType, Episode
 from babylon_anime.download import download_subtitles
 
+import requests as http_requests  # avoid conflict with flask.request
 import db
 import library
 
@@ -344,6 +345,99 @@ def api_library_stream(anime_id, ep_num):
         return send_file(file_path, mimetype='video/mp4', conditional=True)
     except Exception as e:
         logger.error("Stream error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+# ============================================================
+# Discovery routes (Jikan/MAL proxy) — anime trending/popular/seasonal
+# ============================================================
+
+JIKAN_BASE = "https://api.jikan.moe/v4"
+_jikan_cache = {}  # simple in-memory cache: key -> (timestamp, data)
+JIKAN_CACHE_TTL = 300  # 5 minutes
+
+def _jikan_get(path: str) -> dict:
+    """Fetch from Jikan with simple caching."""
+    import time
+    now = time.time()
+    if path in _jikan_cache:
+        ts, data = _jikan_cache[path]
+        if now - ts < JIKAN_CACHE_TTL:
+            return data
+    try:
+        resp = http_requests.get(f"{JIKAN_BASE}{path}", timeout=15)
+        resp.raise_for_status()
+        data = resp.json()
+        _jikan_cache[path] = (now, data)
+        return data
+    except Exception as e:
+        logger.error("Jikan API error: %s", e)
+        # Return cached data if available (stale is better than nothing)
+        if path in _jikan_cache:
+            return _jikan_cache[path][1]
+        return {"data": []}
+
+
+def _format_jikan_anime(items: list) -> list:
+    """Convert Jikan anime objects to our standard format."""
+    results = []
+    for item in items[:25]:
+        entry = item.get("entry", item)  # handle both direct and nested formats
+        images = entry.get("images", {}).get("jpg", {})
+        results.append({
+            "id": f"mal:{entry.get('mal_id', '')}",
+            "title": entry.get("title_english") or entry.get("title", ""),
+            "native_title": entry.get("title_japanese") or entry.get("title", ""),
+            "cover_url": images.get("large_image_url") or images.get("image_url"),
+            "year": entry.get("year"),
+            "episode_count": entry.get("episodes"),
+            "status": entry.get("status"),
+            "description": (entry.get("synopsis") or "")[:300],
+            "genres": [g.get("name", "") for g in entry.get("genres", [])],
+            "score": entry.get("score"),
+            "languages": ["sub"],
+            "source": "jikan",
+        })
+    return results
+
+
+@app.route("/api/discover/trending")
+def api_discover_trending():
+    """Top airing anime (trending)."""
+    try:
+        data = _jikan_get("/top/anime?filter=airing&limit=25")
+        return jsonify(_format_jikan_anime(data.get("data", [])))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discover/popular")
+def api_discover_popular():
+    """Most popular anime of all time."""
+    try:
+        data = _jikan_get("/top/anime?filter=bypopularity&limit=25")
+        return jsonify(_format_jikan_anime(data.get("data", [])))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discover/seasonal")
+def api_discover_seasonal():
+    """Current season anime."""
+    try:
+        data = _jikan_get("/seasons/now?limit=25")
+        return jsonify(_format_jikan_anime(data.get("data", [])))
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/discover/upcoming")
+def api_discover_upcoming():
+    """Upcoming anime."""
+    try:
+        data = _jikan_get("/seasons/upcoming?limit=25")
+        return jsonify(_format_jikan_anime(data.get("data", [])))
+    except Exception as e:
         return jsonify({"error": str(e)}), 500
 
 

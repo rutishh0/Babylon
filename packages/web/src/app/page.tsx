@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { getLibrary } from '@/lib/anime-api';
-import type { LibraryAnime } from '@/lib/anime-api';
+import { useRouter } from 'next/navigation';
+import { getLibrary, getTrending, getPopular, getSeasonal } from '@/lib/anime-api';
+import type { LibraryAnime, DiscoveryAnime } from '@/lib/anime-api';
+import type { HeroAnime } from '@/components/HeroCarousel';
 import HeroCarousel from '@/components/HeroCarousel';
 import AnimeCarousel from '@/components/AnimeCarousel';
 import { useLanguage } from '@/lib/language-context';
@@ -112,18 +114,79 @@ function MovieHome({ language }: { language: string }) {
   );
 }
 
-// ── Anime Home (existing, unchanged logic) ──
+// ── Discovery → Carousel mapping ──
+
+function discoveryToCarouselItem(anime: DiscoveryAnime): LibraryAnime {
+  return {
+    id: anime.id,
+    title: anime.title,
+    cover_url: anime.cover_url,
+    description: anime.description,
+    genres: anime.genres,
+    year: anime.year,
+    episode_count: anime.episode_count,
+    status: anime.status,
+    languages: anime.languages,
+    episode_count_downloaded: 0,
+  };
+}
+
+function discoveryToHeroItem(anime: DiscoveryAnime): HeroAnime {
+  return {
+    id: anime.id,
+    title: anime.title,
+    cover_url: anime.cover_url,
+    description: anime.description,
+    genres: anime.genres || [],
+    year: anime.year,
+    episode_count: anime.episode_count,
+    status: anime.status,
+    languages: anime.languages || [],
+    episode_count_downloaded: 0,
+  };
+}
+
+// ── Anime Home (with discovery content from Jikan/MAL) ──
 
 function AnimeHome() {
+  const router = useRouter();
   const [library, setLibrary] = useState<LibraryAnime[]>([]);
+  const [trending, setTrending] = useState<DiscoveryAnime[]>([]);
+  const [popular, setPopular] = useState<DiscoveryAnime[]>([]);
+  const [seasonal, setSeasonal] = useState<DiscoveryAnime[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getLibrary()
-      .then((data) => setLibrary(Array.isArray(data) ? data : []))
-      .catch(() => setLibrary([]))
-      .finally(() => setLoading(false));
+    const libraryP = getLibrary()
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => [] as LibraryAnime[]);
+
+    const trendingP = getTrending()
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => [] as DiscoveryAnime[]);
+
+    const popularP = getPopular()
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => [] as DiscoveryAnime[]);
+
+    const seasonalP = getSeasonal()
+      .then((data) => (Array.isArray(data) ? data : []))
+      .catch(() => [] as DiscoveryAnime[]);
+
+    Promise.allSettled([libraryP, trendingP, popularP, seasonalP]).then(
+      ([libResult, trendResult, popResult, seasonResult]) => {
+        setLibrary(libResult.status === 'fulfilled' ? libResult.value : []);
+        setTrending(trendResult.status === 'fulfilled' ? trendResult.value : []);
+        setPopular(popResult.status === 'fulfilled' ? popResult.value : []);
+        setSeasonal(seasonResult.status === 'fulfilled' ? seasonResult.value : []);
+        setLoading(false);
+      },
+    );
   }, []);
+
+  const navigateToDiscover = (anime: { title: string }) => {
+    router.push(`/discover?q=${encodeURIComponent(anime.title)}`);
+  };
 
   if (loading) {
     return (
@@ -133,7 +196,10 @@ function AnimeHome() {
     );
   }
 
-  if (library.length === 0) {
+  // If both library and discovery are empty, show welcome screen
+  const hasAnyContent = library.length > 0 || trending.length > 0 || popular.length > 0 || seasonal.length > 0;
+
+  if (!hasAnyContent) {
     return (
       <div className="min-h-[80vh] flex flex-col items-center justify-center text-center px-4">
         <h1 className="text-white text-3xl font-bold mb-4">Welcome to Babylon</h1>
@@ -150,10 +216,16 @@ function AnimeHome() {
     );
   }
 
-  const heroAnime = library.slice(0, 5);
+  // Hero: prefer trending discovery anime, fall back to library
+  const heroAnime: HeroAnime[] =
+    trending.length > 0
+      ? trending.slice(0, 5).map(discoveryToHeroItem)
+      : library.slice(0, 5);
+  const heroIsDiscovery = trending.length > 0;
+
   const recentlyDownloaded = library.slice(0, 12);
 
-  // Group by genre
+  // Group library by genre
   const genreMap = new Map<string, LibraryAnime[]>();
   for (const anime of library) {
     const genres: string[] =
@@ -168,9 +240,49 @@ function AnimeHome() {
 
   return (
     <div className="min-h-screen">
-      <HeroCarousel anime={heroAnime} />
+      <HeroCarousel
+        anime={heroAnime}
+        linkBuilder={
+          heroIsDiscovery
+            ? (a) => `/discover?q=${encodeURIComponent(a.title)}`
+            : undefined
+        }
+        ctaLabel={heroIsDiscovery ? 'FIND ON ALLANIME' : undefined}
+      />
       <div className="px-4 md:px-8 lg:px-12 pb-16 space-y-8 -mt-4">
-        <AnimeCarousel title="Your Library" anime={recentlyDownloaded} />
+        {/* Continue Watching / Your Library */}
+        {recentlyDownloaded.length > 0 && (
+          <AnimeCarousel title="Your Library" anime={recentlyDownloaded} />
+        )}
+
+        {/* Trending Now (discovery) */}
+        {trending.length > 0 && (
+          <AnimeCarousel
+            title="Trending Now"
+            anime={trending.map(discoveryToCarouselItem)}
+            onItemClick={navigateToDiscover}
+          />
+        )}
+
+        {/* Popular All Time (discovery) */}
+        {popular.length > 0 && (
+          <AnimeCarousel
+            title="Popular All Time"
+            anime={popular.map(discoveryToCarouselItem)}
+            onItemClick={navigateToDiscover}
+          />
+        )}
+
+        {/* This Season (discovery) */}
+        {seasonal.length > 0 && (
+          <AnimeCarousel
+            title="This Season"
+            anime={seasonal.map(discoveryToCarouselItem)}
+            onItemClick={navigateToDiscover}
+          />
+        )}
+
+        {/* Genre rows from library */}
         {Array.from(genreMap.entries())
           .slice(0, 4)
           .map(([genre, items]) => (

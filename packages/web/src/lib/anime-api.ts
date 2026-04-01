@@ -124,3 +124,36 @@ export function getLibraryAnime(animeId: string): Promise<LibraryAnimeDetail> {
 export function buildLocalStreamUrl(animeId: string, epNum: number): string {
   return `/api/anime/library/${encodeURIComponent(animeId)}/stream/${epNum}`;
 }
+
+// ── Discovery (Jikan/MAL) ──
+
+export interface DiscoveryAnime {
+  id: string;
+  title: string;
+  native_title: string | null;
+  cover_url: string | null;
+  year: number | null;
+  episode_count: number | null;
+  status: string | null;
+  description: string | null;
+  genres: string[];
+  score: number | null;
+  languages: string[];
+  source: string;
+}
+
+export function getTrending(): Promise<DiscoveryAnime[]> {
+  return animeRequest('/discover/trending');
+}
+
+export function getPopular(): Promise<DiscoveryAnime[]> {
+  return animeRequest('/discover/popular');
+}
+
+export function getSeasonal(): Promise<DiscoveryAnime[]> {
+  return animeRequest('/discover/seasonal');
+}
+
+export function getUpcoming(): Promise<DiscoveryAnime[]> {
+  return animeRequest('/discover/upcoming');
+}
