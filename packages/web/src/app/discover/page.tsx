@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useToast } from '@/components/Toast';
 import { AnimeCard } from '@/components/AnimeCard';
 import { useDownloadStore } from '@/stores/download-store';
@@ -14,8 +15,9 @@ import type { AnimeSearchResult, EpisodeItem } from '@/lib/anime-api';
 export default function DiscoverPage() {
   const { toast } = useToast();
   const downloadStore = useDownloadStore();
+  const searchParams = useSearchParams();
 
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState(searchParams.get('q') || '');
   const [results, setResults] = useState<AnimeSearchResult[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedAnime, setSelectedAnime] = useState<AnimeSearchResult | null>(null);

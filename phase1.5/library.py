@@ -50,16 +50,26 @@ def scan_media_directory(media_path):
 
 
 def reconcile_with_db(media_path):
-    """Scan disk and insert any episodes missing from the database."""
+    """Scan disk and insert any episodes missing from the database.
+
+    Only creates new anime entries for folders that don't already have
+    a DB record (avoids overwriting proper titles/cover_url with folder names).
+    """
     scanned = scan_media_directory(media_path)
     added_count = 0
     for anime in scanned:
-        # We don't have the AllAnime ID from disk, so use title as fallback ID
+        # Use folder name as fallback ID
         anime_id = anime['title']
-        db.upsert_anime({
-            'id': anime_id,
-            'title': anime['title'],
-        })
+        # Only create a minimal entry if this anime doesn't already exist in DB
+        # (avoids clobbering good metadata from AllAnime downloads)
+        existing = db.get_anime_detail(anime_id)
+        if not existing:
+            # Also check if any existing anime has episodes pointing to this directory
+            # (the download handler uses AllAnime ID as the key, not folder name)
+            db.upsert_anime({
+                'id': anime_id,
+                'title': anime['title'],
+            })
         for ep in anime['episodes']:
             try:
                 db.insert_downloaded_episode(
