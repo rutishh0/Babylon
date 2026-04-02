@@ -7,6 +7,8 @@ import com.babylon.app.data.local.entity.WatchHistoryEntity
 import com.babylon.app.data.repository.AnimeRepository
 import com.babylon.app.data.repository.HistoryRepository
 import com.babylon.app.data.repository.LibraryRepository
+import com.babylon.app.data.repository.SkipRepository
+import com.babylon.app.data.repository.SkipSegment
 import com.babylon.app.data.datastore.SettingsDataStore
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.*
@@ -23,6 +25,8 @@ data class PlayerUiState(
     val isOffline: Boolean = false,
     val isLoading: Boolean = true,
     val error: String? = null,
+    val skipSegments: List<SkipSegment> = emptyList(),
+    val activeSkipSegment: SkipSegment? = null,
 )
 
 @HiltViewModel
@@ -32,6 +36,7 @@ class PlayerViewModel @Inject constructor(
     private val animeRepository: AnimeRepository,
     private val historyRepository: HistoryRepository,
     private val settingsDataStore: SettingsDataStore,
+    private val skipRepository: SkipRepository,
 ) : ViewModel() {
 
     private val animeId: String = savedStateHandle["animeId"] ?: ""
@@ -100,6 +105,23 @@ class PlayerViewModel @Inject constructor(
                     completed = positionMs.toFloat() / durationMs > 0.9f,
                 )
             )
+        }
+    }
+
+    fun fetchSkipTimes(durationSeconds: Double) {
+        viewModelScope.launch {
+            val title = _uiState.value.title.substringBefore(" - ").trim()
+            if (title.isEmpty()) return@launch
+            val segments = skipRepository.getSkipSegments(title, episodeNumber, durationSeconds)
+            _uiState.update { it.copy(skipSegments = segments) }
+        }
+    }
+
+    fun updateActiveSkipSegment(positionMs: Long) {
+        val segments = _uiState.value.skipSegments
+        val active = segments.firstOrNull { positionMs in it.startMs..it.endMs }
+        if (active != _uiState.value.activeSkipSegment) {
+            _uiState.update { it.copy(activeSkipSegment = active) }
         }
     }
 }

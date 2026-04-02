@@ -32,6 +32,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
+import com.babylon.app.data.repository.SkipSegment
 import com.babylon.app.ui.components.ErrorState
 import com.babylon.app.ui.components.LoadingIndicator
 import kotlinx.coroutines.delay
@@ -91,10 +92,18 @@ fun PlayerScreen(
                 referer = state.referer,
                 title = state.title,
                 isOffline = state.isOffline,
+                skipSegments = state.skipSegments,
+                activeSkipSegment = state.activeSkipSegment,
                 lifecycleOwner = lifecycleOwner,
                 onBack = { navController.popBackStack() },
                 onSaveProgress = { positionMs, durationMs ->
                     viewModel.saveProgress(positionMs, durationMs)
+                },
+                onFetchSkipTimes = { durationSeconds ->
+                    viewModel.fetchSkipTimes(durationSeconds)
+                },
+                onUpdateActiveSkipSegment = { positionMs ->
+                    viewModel.updateActiveSkipSegment(positionMs)
                 },
                 onPip = {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -117,9 +126,13 @@ private fun PlayerContent(
     referer: String?,
     title: String,
     isOffline: Boolean,
+    skipSegments: List<SkipSegment>,
+    activeSkipSegment: SkipSegment?,
     lifecycleOwner: androidx.lifecycle.LifecycleOwner,
     onBack: () -> Unit,
     onSaveProgress: (positionMs: Long, durationMs: Long) -> Unit,
+    onFetchSkipTimes: (durationSeconds: Double) -> Unit,
+    onUpdateActiveSkipSegment: (positionMs: Long) -> Unit,
     onPip: () -> Unit,
 ) {
     val context = LocalContext.current
@@ -165,7 +178,11 @@ private fun PlayerContent(
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
-                    durationMs = exoPlayer.duration.coerceAtLeast(0L)
+                    val dur = exoPlayer.duration.coerceAtLeast(0L)
+                    durationMs = dur
+                    if (dur > 0) {
+                        onFetchSkipTimes(dur / 1000.0)
+                    }
                 }
             }
         }
@@ -179,9 +196,11 @@ private fun PlayerContent(
     LaunchedEffect(exoPlayer) {
         while (true) {
             delay(250)
-            currentPositionMs = exoPlayer.currentPosition.coerceAtLeast(0L)
+            val pos = exoPlayer.currentPosition.coerceAtLeast(0L)
+            currentPositionMs = pos
             val dur = exoPlayer.duration
             if (dur > 0) durationMs = dur
+            onUpdateActiveSkipSegment(pos)
         }
     }
 
@@ -287,6 +306,12 @@ private fun PlayerContent(
                 onBack()
             },
             onPipClick = onPip,
+            skipSegment = activeSkipSegment,
+            onSkip = {
+                activeSkipSegment?.let { segment ->
+                    exoPlayer.seekTo(segment.endMs)
+                }
+            },
         )
     }
 }

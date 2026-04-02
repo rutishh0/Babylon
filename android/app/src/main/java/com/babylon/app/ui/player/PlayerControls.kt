@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
@@ -13,7 +14,9 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.babylon.app.data.repository.SkipSegment
 import com.babylon.app.ui.theme.BabylonOrange
 import com.babylon.app.ui.theme.BabylonWhite
 import com.babylon.app.util.formatDuration
@@ -32,6 +35,8 @@ fun PlayerControls(
     onSeekBack: () -> Unit = {},
     onBack: () -> Unit = {},
     onPipClick: () -> Unit = {},
+    skipSegment: SkipSegment? = null,
+    onSkip: () -> Unit = {},
 ) {
     var visible by remember { mutableStateOf(true) }
     var lastInteraction by remember { mutableLongStateOf(System.currentTimeMillis()) }
@@ -182,6 +187,32 @@ fun PlayerControls(
                         )
                     }
                 }
+            }
+        }
+
+        // Skip button (always visible when a skip segment is active, independent of controls)
+        AnimatedVisibility(
+            visible = skipSegment != null,
+            enter = slideInHorizontally(initialOffsetX = { it }) + fadeIn(),
+            exit = slideOutHorizontally(targetOffsetX = { it }) + fadeOut(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(end = 24.dp, bottom = 80.dp)
+                .navigationBarsPadding(),
+        ) {
+            Button(
+                onClick = onSkip,
+                colors = ButtonDefaults.buttonColors(containerColor = BabylonOrange),
+                shape = RoundedCornerShape(4.dp),
+            ) {
+                Text(
+                    text = if (skipSegment?.type == "op") "Skip Intro" else "Skip Outro",
+                    color = BabylonWhite,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                Spacer(Modifier.width(4.dp))
+                Icon(Icons.Default.SkipNext, contentDescription = null, modifier = Modifier.size(18.dp), tint = BabylonWhite)
             }
         }
     }
