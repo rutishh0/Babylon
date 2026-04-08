@@ -1,4 +1,10 @@
-"""Babylon Phase 1.5 — Anime streaming library."""
+"""Babylon Phase 1.5 — Anime streaming library.
+
+Architecture:
+  - Search/metadata: AniList GraphQL (always available, no auth)
+  - Stream resolution: AnimeKai via curl_cffi + enc-dec.app
+  - Downloads: yt-dlp
+"""
 
 from .providers.anilist import search as anilist_search, get_show, get_episodes as anilist_get_episodes
 from .providers.consumet import resolve_episode, health_check as consumet_health_check

@@ -7,18 +7,21 @@ import threading
 
 DB_PATH = os.environ.get("DOWNLOAD_DB", "B:/Babylon/data/phase15.db")
 
-_local = threading.local()
+_conn = None
+_lock = threading.Lock()
 
 
 def _get_conn():
-    """Get a thread-local database connection."""
-    if not hasattr(_local, "conn") or _local.conn is None:
+    """Get a shared database connection (serialized with a lock)."""
+    global _conn
+    if _conn is None:
         os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
-        _local.conn = sqlite3.connect(DB_PATH, check_same_thread=False)
-        _local.conn.row_factory = sqlite3.Row
-        _local.conn.execute("PRAGMA journal_mode=WAL")
-        _local.conn.execute("PRAGMA foreign_keys=ON")
-    return _local.conn
+        _conn = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=30)
+        _conn.row_factory = sqlite3.Row
+        _conn.execute("PRAGMA journal_mode=WAL")
+        _conn.execute("PRAGMA busy_timeout=10000")
+        _conn.execute("PRAGMA foreign_keys=ON")
+    return _conn
 
 
 def init_db():

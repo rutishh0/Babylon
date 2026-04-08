@@ -14,9 +14,11 @@ from flask_cors import CORS
 # Add parent to path for babylon_anime import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from babylon_anime import search as anime_search, get_episodes, get_show, resolve_episode, consumet_health_check
-from babylon_anime import download_from_resolved, download_subtitles_from_resolved
+from babylon_anime import search as anime_search, get_episodes, get_show, consumet_health_check
 from babylon_anime.models import LanguageType, Episode
+
+import nyaa_search
+from qbt_client import QBittorrentClient
 
 import requests as http_requests  # avoid conflict with flask.request
 import db
@@ -42,10 +44,16 @@ def index():
 
 @app.route("/api/health")
 def api_health():
+    qbt_ok = False
+    try:
+        qbt = QBittorrentClient()
+        qbt_ok = qbt.login()
+    except Exception:
+        pass
     return jsonify({
         "status": "ok",
         "search": "anilist",
-        "stream_resolver": "consumet" if consumet_health_check() else "unavailable",
+        "downloads": "nyaa+qbittorrent" if qbt_ok else "qbittorrent_offline",
     })
 
 
@@ -106,6 +114,26 @@ def api_episodes():
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/nyaa/search")
+def api_nyaa_search():
+    """Search Nyaa for anime torrents."""
+    q = request.args.get("q", "").strip()
+    batch = request.args.get("batch", "false").lower() == "true"
+    if not q:
+        return jsonify({"error": "Query parameter 'q' is required"}), 400
+    try:
+        results = nyaa_search.search_nyaa(q, batch_only=batch)
+        return jsonify([{
+            "title": r.title,
+            "magnet": r.magnet,
+            "seeders": r.seeders,
+            "size": r.size,
+        } for r in results[:20]])
+    except Exception as e:
+        logger.error("Nyaa search error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/stream")
 def api_stream():
     anime_id = request.args.get("anime_id", "")
@@ -138,19 +166,19 @@ def api_stream():
 
 @app.route("/api/download", methods=["POST"])
 def api_download():
+    """Download anime via Nyaa torrents + qBittorrent.
+
+    Searches Nyaa for the best batch torrent and adds it to qBittorrent.
+    """
     data = request.get_json()
     if not data:
         return jsonify({"error": "JSON body required"}), 400
 
     anime_id = data.get("anime_id", "")
-    episodes = data.get("episodes", [])  # list of episode numbers
-    lang = data.get("lang", "sub")
-    quality = data.get("quality", "best")
-    output_dir = data.get("output_dir", DEFAULT_OUTPUT)
     anime_title = data.get("title", "anime")
 
-    if not anime_id or not episodes:
-        return jsonify({"error": "anime_id and episodes list required"}), 400
+    if not anime_id or not anime_title:
+        return jsonify({"error": "anime_id and title required"}), 400
 
     # Persist anime metadata to DB
     db.upsert_anime({
@@ -164,113 +192,127 @@ def api_download():
         "status": data.get("status"),
     })
 
+    # Search Nyaa for the best batch torrent
+    result = nyaa_search.find_best_batch(anime_title)
+    if not result:
+        return jsonify({"error": f"No torrents found on Nyaa for '{anime_title}'"}), 404
+
+    # Set up save path
+    safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in anime_title).strip()
+    save_path = os.path.join(DEFAULT_OUTPUT, safe_title)
+    os.makedirs(save_path, exist_ok=True)
+
+    # Add to qBittorrent
+    try:
+        qbt = QBittorrentClient()
+        if not qbt.login():
+            return jsonify({"error": "Failed to connect to qBittorrent"}), 500
+
+        torrent_hash = qbt.add_magnet(result.magnet, save_path=save_path)
+    except Exception as e:
+        logger.error("qBittorrent error: %s", e)
+        return jsonify({"error": f"qBittorrent error: {e}"}), 500
+
     # Create DB-backed job
-    job_db_id = db.create_job(anime_id, anime_title, len(episodes))
+    episode_count = data.get("episode_count") or 1
+    job_db_id = db.create_job(anime_id, anime_title, episode_count)
+    db.update_job(job_db_id, status="downloading", progress=0)
 
     with _download_lock:
         _job_counter[0] += 1
         job_id = str(_job_counter[0])
         _downloads[job_id] = {
-            "status": "starting",
+            "status": "downloading",
             "progress": 0,
-            "total": len(episodes),
+            "total": episode_count,
             "current": None,
             "completed": [],
             "errors": [],
             "title": anime_title,
             "db_job_id": job_db_id,
+            "torrent_hash": torrent_hash,
+            "nyaa_title": result.title,
+            "nyaa_size": result.size,
+            "nyaa_seeders": result.seeders,
         }
 
-    def run_downloads():
-        safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in anime_title).strip()
-        dl_dir = os.path.join(output_dir, safe_title)
-        os.makedirs(dl_dir, exist_ok=True)
-
-        completed_list = []
-        error_list = []
-
-        for i, ep_num in enumerate(episodes):
-            with _download_lock:
-                _downloads[job_id]["status"] = "downloading"
-                _downloads[job_id]["current"] = ep_num
-                _downloads[job_id]["progress"] = i
-
-            db.update_job(job_db_id,
-                          status="downloading",
-                          current_episode=float(ep_num),
-                          progress=i)
-
+    # Background thread to monitor torrent progress
+    def poll_torrent():
+        import time
+        while True:
             try:
-                # Resolve stream URL via consumet provider chain
-                resolved = resolve_episode(anime_title, int(ep_num), dub=(lang == "dub"))
-                if not resolved:
-                    err_msg = f"Ep {ep_num}: no streams found (consumet unavailable or all providers failed)"
-                    error_list.append(err_msg)
-                    with _download_lock:
-                        _downloads[job_id]["errors"].append(err_msg)
-                    db.update_job(job_db_id, errors=error_list)
+                info = qbt.get_torrent_info(torrent_hash)
+                if not info:
+                    time.sleep(5)
                     continue
 
-                filename = f"{safe_title} - E{int(ep_num):02d}.mp4"
-                filepath = os.path.join(dl_dir, filename)
+                progress = info.get("progress", 0)
+                state = info.get("state", "")
 
-                success = download_from_resolved(resolved, filepath)
-                if success:
-                    # Download subtitles too
-                    if resolved.get("subtitles"):
-                        sub_dir = os.path.join(dl_dir, "subs")
-                        download_subtitles_from_resolved(resolved, sub_dir)
-
-                    completed_list.append(ep_num)
-                    with _download_lock:
-                        _downloads[job_id]["completed"].append(ep_num)
-
-                    # Record downloaded episode in DB
-                    file_size = os.path.getsize(filepath) if os.path.isfile(filepath) else None
-                    try:
-                        db.insert_downloaded_episode(
-                            anime_id=anime_id,
-                            ep_num=float(ep_num),
-                            file_path=filepath,
-                            file_size=file_size,
-                            language=lang,
-                            quality=quality,
-                        )
-                    except Exception:
-                        pass  # UNIQUE constraint — already recorded
-
-                    db.update_job(job_db_id,
-                                  completed_episodes=completed_list,
-                                  progress=i + 1)
-                else:
-                    err_msg = f"Ep {ep_num}: download failed"
-                    error_list.append(err_msg)
-                    with _download_lock:
-                        _downloads[job_id]["errors"].append(err_msg)
-                    db.update_job(job_db_id, errors=error_list)
-
-            except Exception as e:
-                logger.error("Download error ep %s: %s", ep_num, e)
-                err_msg = f"Ep {ep_num}: {str(e)}"
-                error_list.append(err_msg)
                 with _download_lock:
-                    _downloads[job_id]["errors"].append(err_msg)
-                db.update_job(job_db_id, errors=error_list)
+                    _downloads[job_id]["progress"] = progress
+                    _downloads[job_id]["status"] = "downloading" if progress < 1.0 else "complete"
 
-        with _download_lock:
-            _downloads[job_id]["status"] = "complete"
-            _downloads[job_id]["progress"] = len(episodes)
+                db.update_job(job_db_id, progress=int(progress * episode_count))
 
-        db.update_job(job_db_id,
-                      status="complete",
-                      progress=len(episodes),
-                      completed_episodes=completed_list,
-                      errors=error_list)
+                if progress >= 1.0 or state in ("uploading", "pausedUP", "stalledUP"):
+                    with _download_lock:
+                        _downloads[job_id]["status"] = "complete"
+                        _downloads[job_id]["progress"] = 1.0
+                    db.update_job(job_db_id, status="complete", progress=episode_count)
 
-    thread = threading.Thread(target=run_downloads, daemon=True)
+                    # Register downloaded files in the library
+                    try:
+                        files = qbt.get_files(torrent_hash)
+                        video_exts = (".mp4", ".mkv", ".ts", ".avi")
+                        ep_num = 0
+                        for f in sorted(files, key=lambda x: x.get("name", "")):
+                            name = f.get("name", "")
+                            if any(name.lower().endswith(ext) for ext in video_exts):
+                                ep_num += 1
+                                filepath = os.path.join(save_path, name)
+                                file_size = f.get("size")
+                                try:
+                                    db.insert_downloaded_episode(
+                                        anime_id=anime_id,
+                                        ep_num=float(ep_num),
+                                        file_path=filepath,
+                                        file_size=file_size,
+                                        language="sub",
+                                        quality="1080p",
+                                    )
+                                except Exception:
+                                    pass
+                    except Exception as e:
+                        logger.error("Error registering files: %s", e)
+
+                    logger.info("Download complete: %s", anime_title)
+                    break
+
+                if state in ("error", "missingFiles"):
+                    with _download_lock:
+                        _downloads[job_id]["status"] = "error"
+                        _downloads[job_id]["errors"].append(f"Torrent error: {state}")
+                    db.update_job(job_db_id, status="error")
+                    break
+
+                time.sleep(5)
+            except Exception as e:
+                logger.error("Torrent poll error: %s", e)
+                time.sleep(10)
+
+    thread = threading.Thread(target=poll_torrent, daemon=True)
     thread.start()
 
-    return jsonify({"job_id": job_id, "db_job_id": job_db_id, "message": f"Started downloading {len(episodes)} episodes"})
+    return jsonify({
+        "job_id": job_id,
+        "db_job_id": job_db_id,
+        "torrent_hash": torrent_hash,
+        "nyaa_title": result.title,
+        "nyaa_size": result.size,
+        "nyaa_seeders": result.seeders,
+        "message": f"Added torrent: {result.title} ({result.size}, {result.seeders} seeders)",
+    })
 
 
 @app.route("/api/download/status")
@@ -708,7 +750,10 @@ def api_movies_library():
 # Initialize DB and scan disk on startup
 db.init_db()
 media_path = os.environ.get("DOWNLOAD_OUTPUT", "B:/Babylon/media")
-library.reconcile_with_db(media_path)
+try:
+    library.reconcile_with_db(media_path)
+except Exception as e:
+    logger.warning("Library reconcile failed (non-fatal): %s", e)
 
 
 if __name__ == "__main__":
