@@ -14,9 +14,9 @@ from flask_cors import CORS
 # Add parent to path for babylon_anime import
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from babylon_anime import search as anime_search, get_episodes, get_stream, get_streams, download_episode
+from babylon_anime import search as anime_search, get_episodes, get_show, resolve_episode, consumet_health_check
+from babylon_anime import download_from_resolved, download_subtitles_from_resolved
 from babylon_anime.models import LanguageType, Episode
-from babylon_anime.download import download_subtitles
 
 import requests as http_requests  # avoid conflict with flask.request
 import db
@@ -40,6 +40,15 @@ def index():
     return send_from_directory("web", "index.html")
 
 
+@app.route("/api/health")
+def api_health():
+    return jsonify({
+        "status": "ok",
+        "search": "anilist",
+        "stream_resolver": "consumet" if consumet_health_check() else "unavailable",
+    })
+
+
 @app.route("/api/search")
 def api_search():
     q = request.args.get("q", "").strip()
@@ -50,19 +59,19 @@ def api_search():
         return jsonify([{
             "id": r.id,
             "title": r.title,
-            "native_title": r.native_title,
+            "native_title": getattr(r, "native_title", None),
             "provider": r.provider,
-            "languages": [l.value for l in r.languages],
+            "languages": [l.value for l in r.languages] if r.languages else ["sub"],
             "year": r.year,
             "episode_count": r.episode_count,
             "cover_url": r.cover_url,
             "description": r.description,
-            "genres": r.genres,
+            "genres": r.genres or [],
             "status": r.status,
         } for r in results])
     except Exception as e:
         logger.error("Search error: %s", e)
-        return jsonify({"error": str(e)}), 500
+        return jsonify({"error": "Search is currently unavailable. Please try again later."}), 503
 
 
 @app.route("/api/episodes")
@@ -81,7 +90,19 @@ def api_episodes():
             "language": ep.language.value,
         } for ep in episodes])
     except Exception as e:
-        logger.error("Episodes error: %s", e)
+        logger.warning("Online episodes failed (%s), falling back to local DB", e)
+        # Fall back to locally downloaded episodes from the database
+        try:
+            detail = db.get_anime_detail(anime_id)
+            if detail and detail.get("episodes"):
+                return jsonify([{
+                    "anime_id": anime_id,
+                    "number": ep["episode_number"],
+                    "provider": "local",
+                    "language": ep.get("language", "sub"),
+                } for ep in detail["episodes"]])
+        except Exception:
+            pass
         return jsonify({"error": str(e)}), 500
 
 
@@ -90,27 +111,25 @@ def api_stream():
     anime_id = request.args.get("anime_id", "")
     ep_num = request.args.get("ep", "")
     lang = request.args.get("lang", "sub")
-    quality = request.args.get("quality", "best")
+    title = request.args.get("title", "")
     if not anime_id or not ep_num:
         return jsonify({"error": "Parameters 'anime_id' and 'ep' are required"}), 400
     try:
-        lang_type = LanguageType.DUB if lang == "dub" else LanguageType.SUB
-        episode = Episode(
-            anime_id=anime_id,
-            number=float(ep_num),
-            provider="allanime",
-            language=lang_type,
-        )
-        stream = get_stream(episode, quality=quality)
-        if not stream:
-            return jsonify({"error": "No streams found"}), 404
+        # Get show title from AniList if not provided
+        if not title:
+            show = get_show(anime_id)
+            title = show["title"] if show else anime_id
+
+        resolved = resolve_episode(title, int(float(ep_num)), dub=(lang == "dub"))
+        if not resolved:
+            return jsonify({"error": "No streams found from any provider"}), 404
         return jsonify({
-            "url": stream.url,
-            "quality": stream.quality,
-            "format": stream.format,
-            "referer": stream.referer,
-            "provider_name": stream.provider_name,
-            "subtitles": [{"url": s.url, "language": s.language} for s in stream.subtitles],
+            "url": resolved["url"],
+            "quality": resolved.get("quality", "auto"),
+            "format": resolved.get("format", "m3u8"),
+            "referer": resolved.get("referer", ""),
+            "provider_name": resolved.get("provider", "unknown"),
+            "subtitles": [{"url": s.get("url", ""), "language": s.get("lang", "")} for s in resolved.get("subtitles", [])],
         })
     except Exception as e:
         logger.error("Stream error: %s", e)
@@ -163,7 +182,6 @@ def api_download():
         }
 
     def run_downloads():
-        lang_type = LanguageType.DUB if lang == "dub" else LanguageType.SUB
         safe_title = "".join(c if c.isalnum() or c in " -_" else "_" for c in anime_title).strip()
         dl_dir = os.path.join(output_dir, safe_title)
         os.makedirs(dl_dir, exist_ok=True)
@@ -183,31 +201,25 @@ def api_download():
                           progress=i)
 
             try:
-                episode = Episode(
-                    anime_id=anime_id,
-                    number=float(ep_num),
-                    provider="allanime",
-                    language=lang_type,
-                )
-                stream = get_stream(episode, quality=quality)
-                if not stream:
-                    err_msg = f"Ep {ep_num}: no streams"
+                # Resolve stream URL via consumet provider chain
+                resolved = resolve_episode(anime_title, int(ep_num), dub=(lang == "dub"))
+                if not resolved:
+                    err_msg = f"Ep {ep_num}: no streams found (consumet unavailable or all providers failed)"
                     error_list.append(err_msg)
                     with _download_lock:
                         _downloads[job_id]["errors"].append(err_msg)
                     db.update_job(job_db_id, errors=error_list)
                     continue
 
-                ext = "ts" if stream.format == "m3u8" else "mp4"
-                filename = f"{safe_title} - E{int(ep_num):02d}.{ext}"
+                filename = f"{safe_title} - E{int(ep_num):02d}.mp4"
                 filepath = os.path.join(dl_dir, filename)
 
-                success = download_episode(stream, filepath)
+                success = download_from_resolved(resolved, filepath)
                 if success:
                     # Download subtitles too
-                    if stream.subtitles:
+                    if resolved.get("subtitles"):
                         sub_dir = os.path.join(dl_dir, "subs")
-                        download_subtitles(stream, sub_dir)
+                        download_subtitles_from_resolved(resolved, sub_dir)
 
                     completed_list.append(ep_num)
                     with _download_lock:

@@ -1,10 +1,10 @@
-"""Episode download module — supports M3U8 (HLS) and direct MP4 downloads."""
+"""Episode download module — uses yt-dlp for robust HLS/MP4 downloading."""
 
+import json
 import logging
 import os
+import re
 import subprocess
-import tempfile
-from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Callable, Optional
 
 import requests
@@ -21,168 +21,102 @@ def download_episode(
     use_ffmpeg: bool = False,
 ) -> bool:
     """
-    Download an episode stream to a file.
+    Download an episode stream to a file using yt-dlp.
 
     Args:
         stream: Stream object with URL and format info
         output_path: Where to save the file
         progress_callback: Optional function called with progress 0.0-1.0
-        use_ffmpeg: Force FFmpeg for all downloads
+        use_ffmpeg: Ignored (yt-dlp handles format selection internally)
 
     Returns:
         True on success, False on failure
     """
     os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
-
-    if use_ffmpeg or stream.format not in ("m3u8", "mp4"):
-        return _ffmpeg_download(stream, output_path)
-    elif stream.format == "m3u8":
-        return _m3u8_download(stream, output_path, progress_callback)
-    else:
-        return _mp4_download(stream, output_path, progress_callback)
+    return _ytdlp_download(stream.url, output_path, stream.referer, progress_callback)
 
 
-def _mp4_download(
-    stream: Stream,
+def download_from_resolved(
+    resolved: dict,
     output_path: str,
     progress_callback: Optional[Callable[[float], None]] = None,
 ) -> bool:
-    """Direct MP4 download with progress tracking."""
-    try:
-        headers = {}
-        if stream.referer:
-            headers["Referer"] = stream.referer
+    """Download from a consumet-resolved source dict.
 
-        with requests.get(stream.url, headers=headers, stream=True, timeout=30) as resp:
-            resp.raise_for_status()
-            total = int(resp.headers.get("content-length", 0))
-            downloaded = 0
+    Args:
+        resolved: dict from consumet.resolve_episode() with keys: url, referer, headers
+        output_path: Where to save the file
+        progress_callback: Optional progress callback
 
-            with open(output_path, "wb") as f:
-                for chunk in resp.iter_content(chunk_size=8192):
-                    f.write(chunk)
-                    downloaded += len(chunk)
-                    if progress_callback and total > 0:
-                        progress_callback(downloaded / total)
-
-        logger.info("Downloaded MP4: %s (%.1f MB)", output_path, os.path.getsize(output_path) / 1e6)
-        return True
-
-    except Exception as e:
-        logger.error("MP4 download failed: %s", e)
-        if os.path.exists(output_path):
-            os.remove(output_path)
-        return False
+    Returns:
+        True on success, False on failure
+    """
+    os.makedirs(os.path.dirname(output_path) or ".", exist_ok=True)
+    referer = resolved.get("referer", "")
+    headers = resolved.get("headers", {})
+    return _ytdlp_download(resolved["url"], output_path, referer, progress_callback, headers)
 
 
-def _m3u8_download(
-    stream: Stream,
+def _ytdlp_download(
+    url: str,
     output_path: str,
+    referer: str = "",
     progress_callback: Optional[Callable[[float], None]] = None,
+    extra_headers: Optional[dict] = None,
 ) -> bool:
-    """HLS M3U8 download — downloads segments in parallel then concatenates."""
+    """Download a stream URL using yt-dlp."""
+    cmd = [
+        "yt-dlp",
+        "--no-warnings",
+        "--progress",
+        "--newline",
+        "-o", output_path,
+        "--merge-output-format", "mp4",
+    ]
+
+    if referer:
+        cmd.extend(["--referer", referer])
+
+    if extra_headers:
+        for key, value in extra_headers.items():
+            if key.lower() != "referer":  # referer handled above
+                cmd.extend(["--add-header", f"{key}: {value}"])
+
+    cmd.append(url)
+
     try:
-        headers = {}
-        if stream.referer:
-            headers["Referer"] = stream.referer
+        logger.info("yt-dlp: downloading %s → %s", url[:80], os.path.basename(output_path))
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            bufsize=1,
+        )
 
-        # Fetch the M3U8 playlist
-        resp = requests.get(stream.url, headers=headers, timeout=15)
-        resp.raise_for_status()
-
-        # Extract segment URLs
-        base_url = stream.url.rsplit("/", 1)[0]
-        segments = []
-        for line in resp.text.strip().split("\n"):
+        for line in process.stdout:
             line = line.strip()
-            if line and not line.startswith("#"):
-                if line.startswith("http"):
-                    segments.append(line)
-                else:
-                    segments.append(f"{base_url}/{line}")
+            if progress_callback and "[download]" in line:
+                match = re.search(r"([\d.]+)%", line)
+                if match:
+                    pct = float(match.group(1)) / 100.0
+                    progress_callback(pct)
 
-        if not segments:
-            logger.warning("No segments found in M3U8, falling back to FFmpeg")
-            return _ffmpeg_download(stream, output_path)
+        process.wait()
 
-        total = len(segments)
-        completed = [0]
-
-        # Download segments to temp files
-        with tempfile.TemporaryDirectory() as tmpdir:
-            segment_files = [os.path.join(tmpdir, f"seg_{i:05d}.ts") for i in range(total)]
-
-            def download_segment(args):
-                idx, url, path = args
-                for attempt in range(3):
-                    try:
-                        r = requests.get(url, headers=headers, timeout=30)
-                        r.raise_for_status()
-                        with open(path, "wb") as f:
-                            f.write(r.content)
-                        completed[0] += 1
-                        if progress_callback:
-                            progress_callback(completed[0] / total)
-                        return True
-                    except Exception:
-                        if attempt == 2:
-                            return False
-                return False
-
-            tasks = [(i, url, path) for i, (url, path) in enumerate(zip(segments, segment_files))]
-
-            with ThreadPoolExecutor(max_workers=8) as pool:
-                futures = [pool.submit(download_segment, task) for task in tasks]
-                results = [f.result() for f in as_completed(futures)]
-
-            if not all(results):
-                logger.warning("Some segments failed, falling back to FFmpeg")
-                return _ffmpeg_download(stream, output_path)
-
-            # Concatenate all .ts files into the output
-            with open(output_path, "wb") as outf:
-                for seg_path in segment_files:
-                    if os.path.exists(seg_path):
-                        with open(seg_path, "rb") as sf:
-                            outf.write(sf.read())
-
-        logger.info("Downloaded M3U8: %s (%.1f MB, %d segments)", output_path, os.path.getsize(output_path) / 1e6, total)
-        return True
-
-    except Exception as e:
-        logger.error("M3U8 download failed: %s", e)
-        if os.path.exists(output_path):
-            os.remove(output_path)
-        return False
-
-
-def _ffmpeg_download(stream: Stream, output_path: str) -> bool:
-    """FFmpeg-based download — handles any stream format."""
-    cmd = ["ffmpeg", "-y"]
-
-    if stream.referer:
-        cmd.extend(["-headers", f"Referer: {stream.referer}\r\n"])
-
-    cmd.extend([
-        "-i", stream.url,
-        "-c", "copy",
-        "-bsf:a", "aac_adtstoasc",
-        output_path,
-    ])
-
-    try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=3600)
-        if result.returncode == 0:
-            logger.info("FFmpeg download complete: %s", output_path)
+        if process.returncode == 0 and os.path.isfile(output_path):
+            size_mb = os.path.getsize(output_path) / (1024 * 1024)
+            logger.info("yt-dlp complete: %s (%.1f MB)", os.path.basename(output_path), size_mb)
             return True
         else:
-            logger.error("FFmpeg failed: %s", result.stderr[-500:])
+            logger.error("yt-dlp failed with exit code %d", process.returncode)
             return False
-    except subprocess.TimeoutExpired:
-        logger.error("FFmpeg download timed out")
-        return False
+
     except FileNotFoundError:
-        logger.error("FFmpeg not found — install it to use this download method")
+        logger.error("yt-dlp not found — install with: pip install yt-dlp")
+        return False
+    except Exception as e:
+        logger.error("yt-dlp download error: %s", e)
         return False
 
 
@@ -204,4 +138,27 @@ def download_subtitles(stream: Stream, output_dir: str) -> list[str]:
             saved.append(path)
         except Exception as e:
             logger.warning("Failed to download subtitle %s: %s", sub.language, e)
+    return saved
+
+
+def download_subtitles_from_resolved(resolved: dict, output_dir: str) -> list[str]:
+    """Download subtitle tracks from consumet-resolved source."""
+    saved = []
+    for sub in resolved.get("subtitles", []):
+        url = sub.get("url", "")
+        lang = sub.get("lang", "unknown")
+        if not url:
+            continue
+        ext = "vtt" if ".vtt" in url else "srt" if ".srt" in url else "ass"
+        filename = f"{lang}.{ext}"
+        path = os.path.join(output_dir, filename)
+        try:
+            resp = requests.get(url, timeout=15)
+            resp.raise_for_status()
+            os.makedirs(output_dir, exist_ok=True)
+            with open(path, "wb") as f:
+                f.write(resp.content)
+            saved.append(path)
+        except Exception as e:
+            logger.warning("Failed to download subtitle %s: %s", lang, e)
     return saved
