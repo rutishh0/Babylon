@@ -246,19 +246,20 @@ def api_download():
                     time.sleep(5)
                     continue
 
-                progress = info.get("progress", 0)
+                progress_raw = info.get("progress", 0)
+                progress_pct = int(progress_raw * 100)  # int 0-100 for Android
                 state = info.get("state", "")
 
                 with _download_lock:
-                    _downloads[job_id]["progress"] = progress
-                    _downloads[job_id]["status"] = "downloading" if progress < 1.0 else "complete"
+                    _downloads[job_id]["progress"] = progress_pct
+                    _downloads[job_id]["status"] = "downloading" if progress_raw < 1.0 else "complete"
 
-                db.update_job(job_db_id, progress=int(progress * episode_count))
+                db.update_job(job_db_id, progress=int(progress_raw * episode_count))
 
-                if progress >= 1.0 or state in ("uploading", "pausedUP", "stalledUP"):
+                if progress_raw >= 1.0 or state in ("uploading", "pausedUP", "stalledUP"):
                     with _download_lock:
                         _downloads[job_id]["status"] = "complete"
-                        _downloads[job_id]["progress"] = 1.0
+                        _downloads[job_id]["progress"] = 100
                     db.update_job(job_db_id, status="complete", progress=episode_count)
 
                     # Register downloaded files in the library
@@ -369,6 +370,16 @@ def api_library_stream(anime_id, ep_num):
         file_path = ep['file_path']
         file_size = os.path.getsize(file_path)
 
+        # Detect correct MIME type from file extension
+        _mime_map = {
+            '.mkv': 'video/x-matroska',
+            '.mp4': 'video/mp4',
+            '.avi': 'video/x-msvideo',
+            '.ts': 'video/mp2t',
+            '.webm': 'video/webm',
+        }
+        mime_type = _mime_map.get(os.path.splitext(file_path)[1].lower(), 'application/octet-stream')
+
         range_header = request.headers.get('Range')
         if range_header:
             match = re.match(r'bytes=(\d+)-(\d*)', range_header)
@@ -390,13 +401,13 @@ def api_library_stream(anime_id, ep_num):
                             remaining -= len(chunk)
                             yield chunk
 
-                resp = app.response_class(generate(), status=206, mimetype='video/mp4')
+                resp = app.response_class(generate(), status=206, mimetype=mime_type)
                 resp.headers['Content-Range'] = f'bytes {start}-{end}/{file_size}'
                 resp.headers['Accept-Ranges'] = 'bytes'
                 resp.headers['Content-Length'] = length
                 return resp
 
-        return send_file(file_path, mimetype='video/mp4', conditional=True)
+        return send_file(file_path, mimetype=mime_type, conditional=True)
     except Exception as e:
         logger.error("Stream error: %s", e)
         return jsonify({"error": str(e)}), 500

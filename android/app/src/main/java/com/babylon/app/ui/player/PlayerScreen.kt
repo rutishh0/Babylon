@@ -27,9 +27,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.Tracks
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import androidx.media3.ui.PlayerView
 import androidx.navigation.NavController
 import com.babylon.app.data.repository.SkipSegment
@@ -141,6 +144,17 @@ private fun PlayerContent(
     var isPlaying by remember { mutableStateOf(true) }
     var currentPositionMs by remember { mutableLongStateOf(0L) }
     var durationMs by remember { mutableLongStateOf(0L) }
+    var subtitlesEnabled by remember { mutableStateOf(true) }
+    val subtitleAutoSelected = remember { mutableStateOf(false) }
+
+    // Track selector with subtitle preference
+    val trackSelector = remember {
+        DefaultTrackSelector(context).apply {
+            parameters = buildUponParameters()
+                .setPreferredTextLanguage("eng")
+                .build()
+        }
+    }
 
     // Create ExoPlayer
     val exoPlayer = remember {
@@ -157,10 +171,11 @@ private fun PlayerContent(
             .setDataSourceFactory(dataSourceFactory)
 
         ExoPlayer.Builder(context)
+            .setTrackSelector(trackSelector)
             .setMediaSourceFactory(mediaSourceFactory)
             .build()
             .apply {
-                val uri = if (isOffline) Uri.parse(streamUrl) else Uri.parse(streamUrl)
+                val uri = Uri.parse(streamUrl)
                 val mediaItem = MediaItem.fromUri(uri)
                 setMediaItem(mediaItem)
                 videoScalingMode = C.VIDEO_SCALING_MODE_SCALE_TO_FIT
@@ -182,6 +197,37 @@ private fun PlayerContent(
                     durationMs = dur
                     if (dur > 0) {
                         onFetchSkipTimes(dur / 1000.0)
+                    }
+                }
+            }
+
+            override fun onTracksChanged(tracks: Tracks) {
+                if (subtitleAutoSelected.value) return
+                // Prefer the "Dialogue" text track over "Signs & Songs"
+                for (group in tracks.groups) {
+                    if (group.type == C.TRACK_TYPE_TEXT) {
+                        for (i in 0 until group.length) {
+                            val format = group.getTrackFormat(i)
+                            if (format.label?.contains("Dialogue", ignoreCase = true) == true) {
+                                trackSelector.parameters = trackSelector.buildUponParameters()
+                                    .setOverrideForType(
+                                        TrackSelectionOverride(group.mediaTrackGroup, listOf(i))
+                                    )
+                                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, false)
+                                    .build()
+                                subtitleAutoSelected.value = true
+                                subtitlesEnabled = true
+                                return
+                            }
+                        }
+                    }
+                }
+                // No "Dialogue" track found — enable any available text track
+                for (group in tracks.groups) {
+                    if (group.type == C.TRACK_TYPE_TEXT && group.length > 0) {
+                        subtitleAutoSelected.value = true
+                        subtitlesEnabled = true
+                        return
                     }
                 }
             }
@@ -285,6 +331,13 @@ private fun PlayerContent(
             currentPositionMs = currentPositionMs,
             durationMs = durationMs,
             title = title,
+            subtitlesEnabled = subtitlesEnabled,
+            onSubtitleToggle = {
+                subtitlesEnabled = !subtitlesEnabled
+                trackSelector.parameters = trackSelector.buildUponParameters()
+                    .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, !subtitlesEnabled)
+                    .build()
+            },
             onPlayPause = {
                 if (exoPlayer.isPlaying) exoPlayer.pause() else exoPlayer.play()
             },

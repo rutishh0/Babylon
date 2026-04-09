@@ -29,6 +29,8 @@ fun PlayerControls(
     durationMs: Long,
     title: String,
     modifier: Modifier = Modifier,
+    subtitlesEnabled: Boolean = false,
+    onSubtitleToggle: () -> Unit = {},
     onPlayPause: () -> Unit = {},
     onSeek: (Long) -> Unit = {},
     onSeekForward: () -> Unit = {},
@@ -94,6 +96,13 @@ fun PlayerControls(
                             .weight(1f)
                             .padding(horizontal = 8.dp),
                     )
+                    IconButton(onClick = onSubtitleToggle) {
+                        Icon(
+                            Icons.Default.ClosedCaption,
+                            contentDescription = "Subtitles",
+                            tint = if (subtitlesEnabled) BabylonOrange else BabylonWhite,
+                        )
+                    }
                     IconButton(onClick = onPipClick) {
                         Icon(
                             Icons.Default.PictureInPicture,
