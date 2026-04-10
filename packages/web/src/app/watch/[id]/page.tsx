@@ -39,25 +39,8 @@ export default function WatchPage() {
     load();
   }, [animeId]);
 
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-[#F47521] border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-  }
-
-  if (error || !anime) {
-    return (
-      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4">
-        <p className="text-[#a0a0a0]">{error || 'Not found'}</p>
-        <Link href="/anime" className="text-[#F47521] hover:underline">Back to Library</Link>
-      </div>
-    );
-  }
-
   // Check if current episode is downloaded
-  const downloadedEps = new Set((anime.episodes || []).map(e => e.episode_number));
+  const downloadedEps = new Set((anime?.episodes || []).map(e => e.episode_number));
   const isDownloaded = downloadedEps.has(currentEp);
 
   // Stream URL — serve from Flask library endpoint
@@ -83,6 +66,23 @@ export default function WatchPage() {
       localStorage.setItem(key, JSON.stringify(filtered.slice(0, 100)));
     } catch { /* silent */ }
   }, [animeId, currentEp, anime, isDownloaded]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-black flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-[#F47521] border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (error || !anime) {
+    return (
+      <div className="min-h-screen bg-black flex flex-col items-center justify-center text-white gap-4">
+        <p className="text-[#a0a0a0]">{error || 'Not found'}</p>
+        <Link href="/anime" className="text-[#F47521] hover:underline">Back to Library</Link>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-black">

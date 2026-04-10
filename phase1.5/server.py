@@ -370,15 +370,9 @@ def api_library_stream(anime_id, ep_num):
         file_path = ep['file_path']
         file_size = os.path.getsize(file_path)
 
-        # Detect correct MIME type from file extension
-        _mime_map = {
-            '.mkv': 'video/x-matroska',
-            '.mp4': 'video/mp4',
-            '.avi': 'video/x-msvideo',
-            '.ts': 'video/mp2t',
-            '.webm': 'video/webm',
-        }
-        mime_type = _mime_map.get(os.path.splitext(file_path)[1].lower(), 'application/octet-stream')
+        # Always send video/mp4 — browsers won't play video/x-matroska via HTML5 <video>,
+        # and ExoPlayer detects MKV via content sniffing regardless of declared MIME type.
+        mime_type = 'video/mp4'
 
         range_header = request.headers.get('Range')
         if range_header:
