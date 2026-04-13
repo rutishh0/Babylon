@@ -122,7 +122,7 @@ export function getLibraryAnime(animeId: string): Promise<LibraryAnimeDetail> {
 }
 
 export function buildLocalStreamUrl(animeId: string, epNum: number): string {
-  return `/api/anime/library/${encodeURIComponent(animeId)}/stream/${epNum}`;
+  return `/api/anime/library/${encodeURIComponent(animeId)}/stream/${epNum}/web`;
 }
 
 // ── Discovery (Jikan/MAL) ──

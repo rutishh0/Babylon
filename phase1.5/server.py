@@ -4,6 +4,8 @@ import os
 import re
 import sys
 import json
+import hashlib
+import subprocess
 import threading
 import logging
 from pathlib import Path
@@ -404,6 +406,58 @@ def api_library_stream(anime_id, ep_num):
         return send_file(file_path, mimetype=mime_type, conditional=True)
     except Exception as e:
         logger.error("Stream error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/library/<path:anime_id>/stream/<ep_num>/web")
+def api_library_stream_web(anime_id, ep_num):
+    """Stream with browser-compatible audio (transcode AC3/DTS → AAC, copy video)."""
+    try:
+        ep = db.get_downloaded_episode(anime_id, float(ep_num))
+        if not ep or not os.path.isfile(ep['file_path']):
+            return jsonify({"error": "Episode not found"}), 404
+
+        file_path = ep['file_path']
+        ext = os.path.splitext(file_path)[1].lower()
+
+        # MP4 files likely have compatible audio already — serve directly
+        if ext == '.mp4':
+            return send_file(file_path, mimetype='video/mp4', conditional=True)
+
+        # For MKV/other containers: transcode audio to AAC, copy video, output MP4
+        cache_dir = os.path.join(
+            os.environ.get("DOWNLOAD_OUTPUT", "B:/Babylon/media"), '.web-cache'
+        )
+        os.makedirs(cache_dir, exist_ok=True)
+
+        mtime = str(os.path.getmtime(file_path))
+        cache_key = hashlib.md5(f"{file_path}:{mtime}".encode()).hexdigest()
+        cache_path = os.path.join(cache_dir, f"{cache_key}.mp4")
+
+        if not os.path.isfile(cache_path):
+            tmp_path = cache_path + '.tmp'
+            result = subprocess.run([
+                'ffmpeg', '-y', '-i', file_path,
+                '-map', '0:v:0', '-map', '0:a:0',
+                '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k',
+                '-movflags', '+faststart',
+                tmp_path,
+            ], capture_output=True, timeout=600)
+
+            if result.returncode != 0 or not os.path.isfile(tmp_path):
+                if os.path.isfile(tmp_path):
+                    os.remove(tmp_path)
+                logger.error("FFmpeg transcode failed: %s", result.stderr.decode(errors='replace')[-500:])
+                return jsonify({"error": "Transcoding failed"}), 500
+
+            os.rename(tmp_path, cache_path)
+            logger.info("Transcoded web cache: %s", cache_path)
+
+        return send_file(cache_path, mimetype='video/mp4', conditional=True)
+    except subprocess.TimeoutExpired:
+        return jsonify({"error": "Transcoding timed out"}), 500
+    except Exception as e:
+        logger.error("Web stream error: %s", e)
         return jsonify({"error": str(e)}), 500
 
 
